@@ -1,0 +1,253 @@
+{
+  "date_entrainement": "2026-11-08T20:49:49+00:00",
+  "sklearn_version": "1.9.1",
+  "features": [
+    "code_postal_ban",
+    "type_batiment",
+    "surface_habitable_logement",
+    "periode_construction",
+    "nombre_niveau_logement",
+    "type_energie_principale_chauffage",
+    "type_installation_chauffage",
+    "type_energie_principale_ecs",
+    "type_installation_ecs",
+    "isolation_toiture",
+    "qualite_isolation_menuiseries",
+    "logement_traversant",
+    "climatisation",
+    "generateur"
+  ],
+  "binary": [
+    "isolation_toiture",
+    "logement_traversant",
+    "climatisation"
+  ],
+  "required": [
+    "code_postal_ban",
+    "type_batiment",
+    "surface_habitable_logement"
+  ],
+  "options": {
+    "code_postal_ban": [
+      "69001",
+      "69002",
+      "69003",
+      "69004",
+      "69005",
+      "69006",
+      "69007",
+      "69008",
+      "69009",
+      "69100",
+      "69130",
+      "69140",
+      "69150",
+      "69300",
+      "69500",
+      "69600",
+      "69700"
+    ],
+    "type_batiment": [
+      "appartement",
+      "maison"
+    ],
+    "type_energie_principale_chauffage": [
+      "Bois – Bûches",
+      "Bois – Granulés (pellets) ou briquettes",
+      "Bois – Plaquettes d’industrie",
+      "Bois – Plaquettes forestières",
+      "Charbon",
+      "Fioul domestique",
+      "GPL",
+      "Gaz naturel",
+      "Propane",
+      "Réseau de Chauffage urbain",
+      "Électricité"
+    ],
+    "type_installation_chauffage": [
+      "collectif",
+      "individuel",
+      "mixte (collectif-individuel)"
+    ],
+    "type_energie_principale_ecs": [
+      "Bois – Bûches",
+      "Bois – Granulés (pellets) ou briquettes",
+      "Bois – Plaquettes d’industrie",
+      "Bois – Plaquettes forestières",
+      "Butane",
+      "Charbon",
+      "Fioul domestique",
+      "GPL",
+      "Gaz naturel",
+      "Non affecté",
+      "Propane",
+      "Réseau de Chauffage urbain",
+      "Électricité"
+    ],
+    "type_installation_ecs": [
+      "collectif",
+      "individuel",
+      "mixte (collectif-individuel)"
+    ],
+    "generateur": [
+      "Autre",
+      "Bois",
+      "Chaudière fioul",
+      "Chaudière gaz condensation",
+      "Chaudière gaz non condensation",
+      "PAC",
+      "Poêle / radiateur autonome",
+      "Réseau de chaleur",
+      "Électrique accumulation",
+      "Électrique direct"
+    ],
+    "periode_construction": [
+      "avant 1948",
+      "1948-1974",
+      "1975-1977",
+      "1978-1982",
+      "1983-1988",
+      "1989-2000",
+      "2001-2005",
+      "2006-2012",
+      "2013-2021",
+      "après 2021"
+    ],
+    "qualite_isolation_menuiseries": [
+      "insuffisante",
+      "moyenne",
+      "bonne",
+      "très bonne"
+    ]
+  },
+  "etiquettes": [
+    "A-B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G"
+  ],
+  "donnees": {
+    "n_brut": 307240,
+    "n_perimetre": 202327,
+    "pct_sans_adresse": 0.0,
+    "manquants_pct": {
+      "tous": {
+        "code_postal_ban": 0.0,
+        "type_batiment": 0.0,
+        "surface_habitable_logement": 0.0,
+        "periode_construction": 0.0,
+        "nombre_niveau_logement": 0.0,
+        "type_energie_principale_chauffage": 0.0,
+        "type_installation_chauffage": 4.1,
+        "type_energie_principale_ecs": 0.0,
+        "type_installation_ecs": 4.1,
+        "isolation_toiture": 2.8,
+        "qualite_isolation_menuiseries": 0.0,
+        "logement_traversant": 2.2,
+        "climatisation": 0.0,
+        "generateur": 0.0
+      },
+      "appartement": {
+        "code_postal_ban": 0.0,
+        "type_batiment": 0.0,
+        "surface_habitable_logement": 0.0,
+        "periode_construction": 0.0,
+        "nombre_niveau_logement": 0.0,
+        "type_energie_principale_chauffage": 0.0,
+        "type_installation_chauffage": 0.0,
+        "type_energie_principale_ecs": 0.0,
+        "type_installation_ecs": 0.0,
+        "isolation_toiture": 2.8,
+        "qualite_isolation_menuiseries": 0.0,
+        "logement_traversant": 2.1,
+        "climatisation": 0.0,
+        "generateur": 0.0
+      },
+      "maison": {
+        "code_postal_ban": 0.0,
+        "type_batiment": 0.0,
+        "surface_habitable_logement": 0.0,
+        "periode_construction": 0.0,
+        "nombre_niveau_logement": 0.0,
+        "type_energie_principale_chauffage": 0.0,
+        "type_installation_chauffage": 100.0,
+        "type_energie_principale_ecs": 0.0,
+        "type_installation_ecs": 100.0,
+        "isolation_toiture": 2.5,
+        "qualite_isolation_menuiseries": 0.0,
+        "logement_traversant": 2.5,
+        "climatisation": 0.0,
+        "generateur": 0.0
+      }
+    },
+    "n_complet": 188493,
+    "n_clean": 202327,
+    "groupes": {
+      "n": 32906,
+      "taille_moyenne": 6.15,
+      "taille_max": 479,
+      "pct_lignes_groupe_2plus": 95.7
+    },
+    "par_type_batiment": {
+      "perimetre": {
+        "appartement": 193941,
+        "maison": 8386
+      },
+      "clean": {
+        "appartement": 193941,
+        "maison": 8386
+      }
+    }
+  },
+  "modeles": {
+    "classification": {
+      "estimateur": "hgb",
+      "params": {
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 255,
+        "max_iter": 500,
+        "early_stopping": true,
+        "class_weight": "balanced"
+      }
+    },
+    "regression": {
+      "estimateur": "hgb",
+      "params": {
+        "learning_rate": 0.1,
+        "max_leaf_nodes": 63,
+        "max_iter": 500,
+        "early_stopping": true
+      }
+    }
+  },
+  "evaluation": "jeu de test séparé par adresse BAN (StratifiedGroupKFold)",
+  "metriques": {
+    "classification": {
+      "accuracy": 0.4469239779955813,
+      "accuracy_1_classe": 0.786153823341884,
+      "f1_macro": 0.3617698296737845,
+      "f1_weighted": 0.4772523062757261,
+      "recall_A-B": 0.7197149643705463,
+      "recall_C": 0.5938352742226835,
+      "recall_D": 0.34098360655737703,
+      "recall_E": 0.3167584153054778,
+      "recall_F": 0.28045917036264023,
+      "recall_G": 0.5608004104669061,
+      "n_train": 134886,
+      "n_test": 67441
+    },
+    "regression": {
+      "rmse": 3931.7664448468486,
+      "mae": 2135.3262065270424,
+      "r2": 0.74215224111294,
+      "bornes_cible": [
+        1631.285,
+        38501.159999999974
+      ],
+      "n_train": 134886,
+      "n_test": 67441
+    }
+  }
+}

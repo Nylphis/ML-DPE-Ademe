@@ -1,0 +1,73 @@
+{
+  "n_brut": 307240,
+  "n_perimetre": 202327,
+  "pct_sans_adresse": 0.0,
+  "manquants_pct": {
+    "tous": {
+      "code_postal_ban": 0.0,
+      "type_batiment": 0.0,
+      "surface_habitable_logement": 0.0,
+      "periode_construction": 0.0,
+      "nombre_niveau_logement": 0.0,
+      "type_energie_principale_chauffage": 0.0,
+      "type_installation_chauffage": 4.1,
+      "type_energie_principale_ecs": 0.0,
+      "type_installation_ecs": 4.1,
+      "isolation_toiture": 2.8,
+      "qualite_isolation_menuiseries": 0.0,
+      "logement_traversant": 2.2,
+      "climatisation": 0.0,
+      "generateur": 0.0
+    },
+    "appartement": {
+      "code_postal_ban": 0.0,
+      "type_batiment": 0.0,
+      "surface_habitable_logement": 0.0,
+      "periode_construction": 0.0,
+      "nombre_niveau_logement": 0.0,
+      "type_energie_principale_chauffage": 0.0,
+      "type_installation_chauffage": 0.0,
+      "type_energie_principale_ecs": 0.0,
+      "type_installation_ecs": 0.0,
+      "isolation_toiture": 2.8,
+      "qualite_isolation_menuiseries": 0.0,
+      "logement_traversant": 2.1,
+      "climatisation": 0.0,
+      "generateur": 0.0
+    },
+    "maison": {
+      "code_postal_ban": 0.0,
+      "type_batiment": 0.0,
+      "surface_habitable_logement": 0.0,
+      "periode_construction": 0.0,
+      "nombre_niveau_logement": 0.0,
+      "type_energie_principale_chauffage": 0.0,
+      "type_installation_chauffage": 100.0,
+      "type_energie_principale_ecs": 0.0,
+      "type_installation_ecs": 100.0,
+      "isolation_toiture": 2.5,
+      "qualite_isolation_menuiseries": 0.0,
+      "logement_traversant": 2.5,
+      "climatisation": 0.0,
+      "generateur": 0.0
+    }
+  },
+  "n_complet": 188493,
+  "n_clean": 202327,
+  "groupes": {
+    "n": 32906,
+    "taille_moyenne": 6.15,
+    "taille_max": 479,
+    "pct_lignes_groupe_2plus": 95.7
+  },
+  "par_type_batiment": {
+    "perimetre": {
+      "appartement": 193941,
+      "maison": 8386
+    },
+    "clean": {
+      "appartement": 193941,
+      "maison": 8386
+    }
+  }
+}

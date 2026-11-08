@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+data/raw/
+# Les modèles peuvent être lourds : à versionner seulement s'ils restent sous 100 Mo
+# models/*.joblib
