@@ -13,6 +13,7 @@ REQUIRED sont obligatoires : un champ laissé vide est envoyé au modèle comme
 import csv
 import io
 import json
+import logging
 import math
 from typing import Any
 
@@ -42,6 +43,10 @@ LABELS = {
 }
 
 LIBELLES_ETIQUETTE = {"A-B": "A ou B"}
+
+# Jamais renseignés pour les maisons dans les données ADEME : non transmis au modèle pour une maison
+CHAMPS_APPARTEMENT = ["type_installation_chauffage", "type_installation_ecs"]
+AIDE_APPARTEMENT = "Ignoré pour une maison : ce champ n’est jamais renseigné pour les maisons dans les données ADEME."
 
 # État propre à chaque session. Aucun renseignement n'est écrit sur le disque.
 st.session_state.setdefault("validated_housing", None)
@@ -137,6 +142,10 @@ def housing_csv(data: dict[str, Any]) -> str:
     writer.writeheader()
     writer.writerow(data)
     return stream.getvalue()
+
+
+def sans_objet(payload: dict[str, Any], field: str) -> bool:
+    return payload["type_batiment"] == "maison" and field in CHAMPS_APPARTEMENT
 
 
 def display_value(field: str, value: Any) -> str:
@@ -263,7 +272,7 @@ def prediction() -> None:
         st.subheader("Le chauffage")
         data["type_energie_principale_chauffage"] = select_category("type_energie_principale_chauffage")
         data["generateur"] = select_category("generateur")
-        data["type_installation_chauffage"] = select_category("type_installation_chauffage")
+        data["type_installation_chauffage"] = select_category("type_installation_chauffage", AIDE_APPARTEMENT)
 
         st.divider()
         st.subheader("L’eau chaude sanitaire")
@@ -272,7 +281,7 @@ def prediction() -> None:
         with left:
             data["type_energie_principale_ecs"] = select_category("type_energie_principale_ecs")
         with right:
-            data["type_installation_ecs"] = select_category("type_installation_ecs")
+            data["type_installation_ecs"] = select_category("type_installation_ecs", AIDE_APPARTEMENT)
 
         st.divider()
         st.subheader("L’isolation et la climatisation")
@@ -305,19 +314,19 @@ def prediction() -> None:
                 st.error(error)
         else:
             payload = {name: data[name] for name in FEATURES}
-
-            if payload["type_batiment"] == "maison":
-                payload["type_installation_chauffage"] = None
-                payload["type_installation_ecs"] = None
+            for field in CHAMPS_APPARTEMENT:
+                if sans_objet(payload, field):
+                    payload[field] = None
 
             st.session_state["validated_housing"] = payload
             st.session_state["prediction_result"] = None
-            
+
             try:
                 st.session_state["prediction_result"] = predict_logement(payload)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
+                # Détail de l'erreur dans la console du serveur, pas dans la page
+                logging.exception("Échec de la prédiction")
                 st.error("L’estimation n’a pas pu être calculée.")
-                st.exception(exc)
 
     payload = st.session_state["validated_housing"]
     if payload is None:
@@ -343,7 +352,7 @@ def prediction() -> None:
             "L’étiquette et la consommation sont estimées par deux modèles distincts : "
             "elles peuvent ne pas être parfaitement cohérentes entre elles."
         )
-        inconnus = [LABELS[f] for f in FEATURES if payload[f] is None]
+        inconnus = [LABELS[f] for f in FEATURES if payload[f] is None and not sans_objet(payload, f)]
         if inconnus:
             st.info(
                 f"{len(inconnus)} caractéristique(s) non renseignée(s) : "
@@ -353,7 +362,9 @@ def prediction() -> None:
 
     st.subheader("Dernières informations validées")
     st.table(
-        [{"Caractéristique": LABELS[name], "Valeur": display_value(name, payload[name])} for name in FEATURES],
+        [{"Caractéristique": LABELS[name],
+          "Valeur": "Sans objet pour une maison" if sans_objet(payload, name) else display_value(name, payload[name])}
+         for name in FEATURES],
         alt="Récapitulatif des caractéristiques du logement validées",
     )
 

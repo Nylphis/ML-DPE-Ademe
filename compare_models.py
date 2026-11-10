@@ -18,7 +18,6 @@ Résultats : reports/comparaison_modeles.csv
 import argparse
 import io
 import time
-from pathlib import Path
 
 import joblib
 import numpy as np

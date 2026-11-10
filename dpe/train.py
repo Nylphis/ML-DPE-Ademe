@@ -115,7 +115,7 @@ def split_par_adresse(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Découpage train/test sans qu'une adresse soit des deux côtés.
 
     Un pli de StratifiedGroupKFold : les groupes (adresses) restent entiers et la
-    proportion des étiquettes est à peu près conservée. TEST_SIZE = 0.30 donne
+    proportion des étiquettes est à peu près conservée. TEST_SIZE = 1/3 donne
     3 plis, donc environ 33 % en test.
     """
     cv = StratifiedGroupKFold(n_splits=round(1 / TEST_SIZE), shuffle=True,
