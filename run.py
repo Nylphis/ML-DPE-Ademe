@@ -30,11 +30,10 @@ def main(argv=None):
     parser.add_argument("--max-lignes", type=int, default=None,
                         help="limiter le téléchargement à un échantillon (par défaut : tout)")
     args = parser.parse_args(argv)
+    steps = args.steps or STEPS
 
     if (args.refetch or args.max_lignes) and "fetch" not in steps:
         parser.error("--refetch et --max-lignes ne servent qu'avec l'étape fetch")
-        
-    steps = args.steps or STEPS
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 

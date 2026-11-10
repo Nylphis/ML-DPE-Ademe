@@ -111,8 +111,8 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     # comme « inconnus » dans le pipeline (train.py). Seules les lignes sans
     # cible sont retirées.
     stats["manquants_pct"] = _taux_manquants(dfClean)
-    stats["n_complet"] = int(dfClean[FEATURES].notna().all(axis=1).sum())  # ce que gardait le dropna
     dfClean = dfClean.dropna(subset=TARGETS + ["code_postal_ban", "type_batiment"])
+    stats["n_complet"] = int(dfClean[FEATURES].notna().all(axis=1).sum())  # ce que gardait le dropna
 
     # Fusion des classes A et B (A trop rare)
     dfClean["etiquette_dpe"] = dfClean["etiquette_dpe"].replace({"A": "A-B", "B": "A-B"})
