@@ -6,6 +6,7 @@ Exemples :
     python run.py train                 # réentraîne sur data/processed/dpe_clean.csv
     python run.py --refetch             # force un nouveau téléchargement complet
     python run.py --max-lignes 10000    # échantillon rapide (téléchargé une fois, puis réutilisé)
+    python run.py fetch clean --incremental   # ajoute les DPE créés ou modifiés depuis la dernière mise à jour
 
 L'étape fetch ne rappelle pas l'API si data/raw contient déjà le résultat de
 la même requête : relancer `python run.py` après un téléchargement complet
@@ -29,11 +30,15 @@ def main(argv=None):
                         help="retélécharger même si les données brutes sont déjà là")
     parser.add_argument("--max-lignes", type=int, default=None,
                         help="limiter le téléchargement à un échantillon (par défaut : tout)")
+    parser.add_argument("--incremental", action="store_true",
+                        help="fetch et clean : seulement les DPE créés ou modifiés depuis la dernière mise à jour")
     args = parser.parse_args(argv)
     steps = args.steps or STEPS
 
     if (args.refetch or args.max_lignes) and "fetch" not in steps:
         parser.error("--refetch et --max-lignes ne servent qu'avec l'étape fetch")
+    if args.incremental and (args.refetch or args.max_lignes):
+        parser.error("--incremental ne se combine pas avec --refetch ni --max-lignes")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 
@@ -43,11 +48,17 @@ def main(argv=None):
             continue
         logging.info("=== Étape %s ===", step)
         if step == "fetch":
-            from dpe.fetch import fetch
-            fetch(refetch=args.refetch, max_lignes=args.max_lignes)
+            from dpe.fetch import fetch, fetch_nouveaux
+            if args.incremental:
+                fetch_nouveaux()
+            else:
+                fetch(refetch=args.refetch, max_lignes=args.max_lignes)
         elif step == "clean":
-            from dpe.clean import run as clean
-            clean()
+            from dpe.clean import run as clean, run_incremental
+            if args.incremental:
+                run_incremental()
+            else:
+                clean()
         elif step == "train":
             from dpe.train import run as train
             train()
