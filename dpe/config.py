@@ -15,6 +15,8 @@ DATA_CLEAN = ROOT / "data" / "processed" / "dpe_clean.csv"
 CLEAN_STATS = ROOT / "data" / "processed" / "clean_stats.json"
 # Trace du dernier téléchargement : évite de rappeler l'API inutilement
 FETCH_INFO = ROOT / "data" / "raw" / "fetch_info.json"
+# Mise à jour incrémentale : DPE créés ou modifiés depuis la dernière mise à jour
+DATA_NOUVEAUX = ROOT / "data" / "raw" / "dpe_nouveaux.csv"
 
 MODELS_DIR = ROOT / "models"
 CLF_PATH = MODELS_DIR / "classification_etiquette.joblib"
@@ -86,7 +88,10 @@ FEATURES = [
 
 # Colonnes gardées dans le CSV nettoyé, qui ne sont pas des variables du modèle
 GROUP = "groupe"   # adresse BAN : sert à découper train/test sans séparer les logements d'une même adresse
-EXTRA = [GROUP, "latitude", "longitude", "nom_commune_ban"]
+# Identifiant et date de dernière modification : servent à la mise à jour incrémentale
+ID_DPE = "numero_dpe"
+DATE_MAJ = "date_derniere_modification_dpe"
+EXTRA = [GROUP, "latitude", "longitude", "nom_commune_ban", ID_DPE, DATE_MAJ]
 
 # ------------------------------------------------
 # Entraînement (valeurs reprises du notebook)
