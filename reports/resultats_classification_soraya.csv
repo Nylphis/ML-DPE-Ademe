@@ -1,0 +1,2 @@
+Modèle,accuracy,accuracy_1_classe,f1_macro,f1_weighted,recall_A-B,recall_C,recall_D,recall_E,recall_F,recall_G
+KNN,0.489,0.861,0.338,0.482,0.275,0.674,0.488,0.277,0.128,0.121

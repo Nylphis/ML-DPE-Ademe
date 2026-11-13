@@ -1,0 +1,4 @@
+,rmse,mae,r2
+Régression linéaire (brute),4600.366,2742.845,0.657
+Régression linéaire (centrée-réduite),4600.366,2742.845,0.657
+ElasticNet,4600.503,2742.764,0.657
