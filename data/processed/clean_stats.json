@@ -1,6 +1,6 @@
 {
-  "n_brut": 307240,
-  "n_perimetre": 202327,
+  "n_brut": 307949,
+  "n_perimetre": 202989,
   "pct_sans_adresse": 0.0,
   "manquants_pct": {
     "tous": {
@@ -52,22 +52,28 @@
       "generateur": 0.0
     }
   },
-  "n_complet": 188493,
-  "n_clean": 202327,
+  "par_type_batiment": {
+    "perimetre": {
+      "appartement": 194570,
+      "maison": 8419
+    },
+    "clean": {
+      "appartement": 194570,
+      "maison": 8419
+    }
+  },
+  "n_complet": 189122,
+  "n_clean": 202989,
   "groupes": {
-    "n": 32906,
-    "taille_moyenne": 6.15,
+    "n": 32951,
+    "taille_moyenne": 6.16,
     "taille_max": 479,
     "pct_lignes_groupe_2plus": 95.7
   },
-  "par_type_batiment": {
-    "perimetre": {
-      "appartement": 193941,
-      "maison": 8386
-    },
-    "clean": {
-      "appartement": 193941,
-      "maison": 8386
-    }
+  "derniere_maj_incrementale": {
+    "date": "2026-11-13T13:49:59+00:00",
+    "n_telecharges": 181,
+    "n_nettoyes": 158,
+    "n_existants_remplaces_ou_retires": 158
   }
 }
