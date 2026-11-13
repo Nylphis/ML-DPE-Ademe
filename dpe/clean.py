@@ -180,6 +180,13 @@ def run(input_path=DATA_RAW, output_path=DATA_CLEAN):
     return df_clean
 
 
+def _meme_contenu(a: pd.DataFrame, b: pd.DataFrame) -> bool:
+    """Vrai si les deux tables ont les mêmes lignes, une fois écrites en CSV."""
+    def texte(df):
+        return df.sort_values(ID_DPE).to_csv(index=False)
+    return len(a) == len(b) and texte(a) == texte(b)
+
+
 def run_incremental(input_path=DATA_NOUVEAUX, output_path=DATA_CLEAN):
     """Nettoie les DPE créés ou modifiés et les fusionne dans le fichier nettoyé.
 
@@ -204,6 +211,11 @@ def run_incremental(input_path=DATA_NOUVEAUX, output_path=DATA_CLEAN):
 
     df_existant = pd.read_csv(output_path, dtype={"code_postal_ban": str, GROUP: str, ID_DPE: str})
     a_retirer = df_existant[ID_DPE].isin(a_remplacer)
+    # Le départ inclut le jour de la dernière mise à jour : ses DPE reviennent à
+    # chaque passage. S'ils n'ont pas changé, on ne réécrit rien (pas de commit inutile).
+    if _meme_contenu(_types(df_existant[a_retirer].copy()), df_nouveaux):
+        log.info("%d DPE retéléchargés, tous identiques : fichier nettoyé inchangé.", len(df_brut))
+        return None
     df_clean = _types(pd.concat([df_existant[~a_retirer], df_nouveaux], ignore_index=True))
     df_clean.to_csv(output_path, index=False)
 
