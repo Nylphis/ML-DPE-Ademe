@@ -273,6 +273,8 @@ with onglet_carte:
     afficher_carte = st.checkbox("Afficher la carte", value=True)
     if afficher_carte:
         points = echantillon[["latitude", "longitude", "etiquette_dpe"]].dropna().copy()
+                # st.map ne gère pas le float32, on repasse en float64 (seulement sur l'échantillon)
+        points[["latitude", "longitude"]] = points[["latitude", "longitude"]].astype("float64")
         points["couleur"] = points["etiquette_dpe"].astype(str).map(COULEURS_ETIQUETTES)
         st.map(points, latitude="latitude", longitude="longitude", color="couleur", size=20)
         st.caption(
