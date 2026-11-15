@@ -6,7 +6,7 @@ mis à jour sur main ; Render redéploie alors l'appli.
 
 Configuration (variables d'environnement, jamais dans le code) :
 - GITHUB_TOKEN  : jeton GitHub limité au dépôt, droit « Actions : lecture et écriture » ;
-- GITHUB_DEPOT  : dépôt au format propriétaire/nom (par défaut Nylphis/ML-DPE-Ademe) ;
+- GITHUB_DEPOT  : dépôt au format propriétaire/nom (par défaut Nylphis/m2_enedis) ;
 - GITHUB_BRANCHE : branche sur laquelle lancer le workflow (par défaut main).
 """
 
@@ -29,7 +29,7 @@ PARIS = ZoneInfo("Europe/Paris")  # GitHub et les fichiers donnent l'heure en UT
 
 API_GITHUB = "https://api.github.com"
 WORKFLOW = "refresh.yml"
-DEPOT = os.environ.get("GITHUB_DEPOT", "Nylphis/ML-DPE-Ademe")
+DEPOT = os.environ.get("GITHUB_DEPOT", "Nylphis/m2_enedis")
 BRANCHE = os.environ.get("GITHUB_BRANCHE", "main")
 JETON = os.environ.get("GITHUB_TOKEN")
 URL_WORKFLOW = f"{API_GITHUB}/repos/{DEPOT}/actions/workflows/{WORKFLOW}"
