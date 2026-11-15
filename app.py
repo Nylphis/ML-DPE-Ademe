@@ -19,5 +19,6 @@ navigation = st.navigation([
     st.Page("pages/contexte.py", title="Contexte", icon=":material/home:", default=True, url_path="contexte"),
     st.Page("pages/exploration.py", title="Exploration", icon=":material/bar_chart:", url_path="exploration"),
     st.Page("pages/prediction.py", title="Prédiction", icon=":material/house:", url_path="prediction"),
+    st.Page("pages/administration.py", title="Administration", icon=":material/settings:", url_path="administration"),
 ])
 navigation.run()

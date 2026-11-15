@@ -1,8 +1,8 @@
 # Mise à jour des données DPE (et réentraînement à la demande), hors de Render.
 #
 # - Automatique le 1er de chaque mois : mise à jour incrémentale, sans réentraînement.
-# - À la main (onglet Actions > Mise à jour des données > Run workflow) : mêmes étapes,
-#   avec deux options, reconstruction complète et réentraînement.
+# - À la main (onglet Actions > Mise à jour des données > Run workflow, ou page Administration
+#   de l'appli) : mêmes étapes, avec deux options, reconstruction complète et réentraînement.
 # Les fichiers modifiés sont commités sur la branche lancée (main) : Render se redéploie seul.
 # Prérequis : Settings > Actions > General > Workflow permissions > Read and write permissions.
 
@@ -45,10 +45,11 @@ jobs:
       - name: Installer les dépendances
         run: pip install -r requirements.txt
 
-      # Lancement automatique : les inputs sont vides, donc mise à jour incrémentale
+      # github.event.inputs : toujours du texte ("true"/"false"), qu'on lance depuis l'onglet Actions ou
+      # depuis la page Administration de l'appli. Lancement automatique : vide, donc mise à jour incrémentale.
       - name: Récupérer et nettoyer les données
         env:
-          COMPLET: ${{ inputs.complet }}
+          COMPLET: ${{ github.event.inputs.complet }}
         run: |
           if [ "$COMPLET" = "true" ]; then
             python run.py fetch clean --refetch
@@ -57,7 +58,7 @@ jobs:
           fi
 
       - name: Réentraîner les modèles
-        if: ${{ inputs.reentrainer }}
+        if: ${{ github.event.inputs.reentrainer == 'true' }}
         run: python run.py train
 
       - name: Publier les fichiers modifiés
