@@ -14,6 +14,7 @@ import json
 import os
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 import streamlit as st
@@ -23,6 +24,8 @@ from pages.commun import METADATA
 
 # Page ouverte à tous : identifiants volontairement publics et préremplis
 IDENTIFIANT, MOT_DE_PASSE = "admin", "admin"
+
+PARIS = ZoneInfo("Europe/Paris")  # GitHub et les fichiers donnent l'heure en UTC
 
 API_GITHUB = "https://api.github.com"
 WORKFLOW = "refresh.yml"
@@ -68,10 +71,10 @@ def en_cours(run: dict | None) -> bool:
 
 
 def date_fr(iso: str | None) -> str:
-    """« 2026-11-13T13:49:59+00:00 » devient « 13/11/2026 à 13:49 (UTC) »."""
+    """« 2026-11-13T13:49:59+00:00 » devient « 13/11/2026 à 14:49 » (heure de Paris)."""
     if not iso:
         return "inconnue"
-    return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%d/%m/%Y à %H:%M (UTC)")
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PARIS).strftime("%d/%m/%Y à %H:%M")
 
 
 @st.fragment(run_every="15s")
