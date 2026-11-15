@@ -1,9 +1,20 @@
 """Page Contexte : présentation du projet, des données et des performances des modèles."""
 
+import altair as alt
+import pandas as pd
 import streamlit as st
 
-from dpe.config import FEATURES
-from vues.commun import METADATA, MODELS, echelle_dpe, fmt_int
+from dpe.config import DATA_CLEAN, FEATURES, ORDRE_ETIQUETTES
+from vues.commun import COULEURS_DPE, METADATA, MODELS, echelle_dpe, fmt_int
+
+
+@st.cache_data(show_spinner=False)
+def repartition_etiquettes() -> pd.DataFrame:
+    """Nombre et part de logements par étiquette (une seule colonne lue : peu de mémoire)."""
+    etiquettes = pd.read_csv(DATA_CLEAN, usecols=["etiquette_dpe"])["etiquette_dpe"]
+    effectifs = etiquettes.value_counts().reindex(ORDRE_ETIQUETTES, fill_value=0)
+    return pd.DataFrame({"etiquette": effectifs.index, "logements": effectifs.values,
+                         "part": effectifs.values / effectifs.sum()})
 
 st.title("DPE Lyon")
 st.caption("Explorer les logements lyonnais et estimer leur performance énergétique.")
@@ -29,6 +40,25 @@ par_type = donnees.get("par_type_batiment", {}).get("clean", {})
 if par_type:
     st.caption("Répartition : " + ", ".join(
         f"{fmt_int(n)} {t}s" for t, n in sorted(par_type.items(), key=lambda x: -x[1])) + ".")
+
+if DATA_CLEAN.exists():
+    repartition = repartition_etiquettes()
+    # A et B sont regroupées : la barre « A-B » prend la couleur du A
+    couleurs = [COULEURS_DPE[e.split("-")[0]] for e in ORDRE_ETIQUETTES]
+    graphique = (
+        alt.Chart(repartition, title="Répartition des logements par étiquette DPE")
+        .mark_bar()
+        .encode(
+            x=alt.X("etiquette:N", sort=ORDRE_ETIQUETTES, title="Étiquette DPE", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("part:Q", title="Part des logements", axis=alt.Axis(format="%")),
+            color=alt.Color("etiquette:N", scale=alt.Scale(domain=ORDRE_ETIQUETTES, range=couleurs), legend=None),
+            tooltip=[alt.Tooltip("etiquette:N", title="Étiquette"),
+                     alt.Tooltip("logements:Q", title="Logements", format=","),
+                     alt.Tooltip("part:Q", title="Part", format=".1%")],
+        )
+    )
+    st.altair_chart(graphique, width="stretch")
+    st.caption("Plus de détails (filtres, carte, consommation) sur la page Exploration.")
 
 st.subheader("Deux objectifs")
 texte, image = st.columns([2, 1])
