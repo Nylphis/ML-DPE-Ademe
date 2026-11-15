@@ -2,7 +2,7 @@
 
 Application Streamlit qui estime l'**étiquette DPE** (A-B à G) et la **consommation annuelle d'énergie finale** (kWh/an) d'un logement de Lyon et d'une partie de la métropole. Les modèles sont entraînés sur les DPE de l'ADEME (logements existants, DPE version 2.1 et suivantes).
 
-En ligne : https://ml-dpe-ademe.onrender.com
+En ligne : https://ml-dpe-ademe.onrender.com (appli) et https://m2-enedis-api.onrender.com/docs (API)
 
 ## Pages
 

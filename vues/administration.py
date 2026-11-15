@@ -27,6 +27,8 @@ IDENTIFIANT, MOT_DE_PASSE = "admin", "admin"
 
 PARIS = ZoneInfo("Europe/Paris")  # GitHub et les fichiers donnent l'heure en UTC
 
+URL_API = os.environ.get("URL_API", "https://m2-enedis-api.onrender.com")
+
 API_GITHUB = "https://api.github.com"
 WORKFLOW = "refresh.yml"
 DEPOT = os.environ.get("GITHUB_DEPOT", "Nylphis/m2_enedis")
@@ -124,6 +126,16 @@ if run and not en_cours(run):
         st.success(texte + f"réussie. [Détails]({run['html_url']})")
     else:
         st.error(texte + f"échec ({run['conclusion']}). [Voir les logs]({run['html_url']})")
+
+# Avant la section de lancement, qui peut arrêter la page (st.stop)
+st.subheader("API")
+st.write(
+    "Les mêmes modèles sont accessibles sans interface, pour d’autres programmes : "
+    "`POST /predict` renvoie l’étiquette et la consommation d’un logement décrit en JSON, "
+    "`GET /info` les valeurs acceptées et les performances."
+)
+st.link_button("Ouvrir la documentation de l’API", f"{URL_API}/docs", icon=":material/api:")
+st.caption("Service hébergé à part : le premier appel après une période d’inactivité peut prendre environ une minute.")
 
 st.subheader("Lancer une mise à jour")
 if not JETON:
