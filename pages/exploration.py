@@ -121,7 +121,7 @@ k3.metric("Consommation médiane", f"{fmt_int(int(df_f['conso_5_usages_ef'].medi
 k4.metric("Consommation médiane au m²", f"{df_f['conso_m2'].median():.0f} kWh/m²/an")
 k5.metric("Part des classes F et G", f"{part_fg:.1f} %")
 
-st.caption("Pour enregistrer un graphique en PNG : menu « ⋯ » en haut à droite du graphique, puis « Save as PNG ».")
+st.caption("Pour enregistrer un graphique en PNG : flèche de téléchargement en haut à droite du graphique au survol.")
 
 # ---------- Onglets ----------
 onglet_ensemble, onglet_conso, onglet_facteurs, onglet_carte, onglet_donnees = st.tabs(
