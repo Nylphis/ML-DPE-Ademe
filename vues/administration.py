@@ -20,7 +20,7 @@ import requests
 import streamlit as st
 
 from dpe.config import CLEAN_STATS
-from pages.commun import METADATA
+from vues.commun import METADATA
 
 # Page ouverte à tous : identifiants volontairement publics et préremplis
 IDENTIFIANT, MOT_DE_PASSE = "admin", "admin"

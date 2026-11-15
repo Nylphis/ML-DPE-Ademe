@@ -3,7 +3,7 @@
 import streamlit as st
 
 from dpe.config import FEATURES
-from pages.commun import METADATA, MODELS, echelle_dpe, fmt_int
+from vues.commun import METADATA, MODELS, echelle_dpe, fmt_int
 
 st.title("DPE Lyon")
 st.caption("Explorer les logements lyonnais et estimer leur performance énergétique.")

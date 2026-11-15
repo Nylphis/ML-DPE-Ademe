@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from dpe.config import DATA_CLEAN, ORDINAL, ORDRE_ETIQUETTES
-from pages.commun import COULEURS_DPE, fmt_int
+from vues.commun import COULEURS_DPE, fmt_int
 
 TAILLE_ECHANTILLON = 3_000  # nb de points pour la carte et le nuage de points
 

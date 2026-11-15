@@ -18,7 +18,7 @@ import streamlit as st
 
 from dpe.config import BINARY, FEATURES, REQUIRED
 from dpe.features import to_model_frame
-from pages.commun import MODELS, OPTIONS, echelle_dpe
+from vues.commun import MODELS, OPTIONS, echelle_dpe
 
 LABELS = {
     "code_postal_ban": "Code postal",
