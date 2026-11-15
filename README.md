@@ -13,11 +13,20 @@ En ligne : https://ml-dpe-ademe.onrender.com
 | Prédiction | Formulaire du logement (3 champs obligatoires), étiquette et consommation estimées, export CSV et JSON |
 | Administration | Mise à jour des données depuis l'API ADEME et réentraînement des modèles (via GitHub Actions) |
 
+## API des modèles
+
+Les mêmes modèles, sans interface : `POST /predict` (caractéristiques du logement en JSON, mêmes champs obligatoires que la page Prédiction) renvoie l'étiquette et la consommation estimées ; `GET /info` donne les valeurs acceptées et les performances. Documentation interactive sur `/docs`.
+
+```bash
+python -m uvicorn api.main:app --port 8000      # puis http://localhost:8000/docs
+```
+
 ## Structure
 
 ```
 app.py                      # configuration et menu de l'appli
 vues/                       # une page par fichier, éléments communs dans commun.py
+api/                        # API des modèles (FastAPI)
 dpe/                        # pipeline : config, fetch (API ADEME), clean, train, features
 run.py                      # lance le pipeline : python run.py [fetch] [clean] [train]
 compare_models.py           # comparaison des modèles candidats -> reports/

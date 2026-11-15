@@ -68,6 +68,10 @@ VALEUR_INCONNUE = "inconnu"
 # Les autres peuvent rester vides : le pipeline les traite comme « inconnus ».
 REQUIRED = ["code_postal_ban", "type_batiment", "surface_habitable_logement"]
 
+# Jamais renseignés pour les maisons dans les données ADEME : non transmis au
+# modèle pour une maison (appli et API)
+CHAMPS_APPARTEMENT = ["type_installation_chauffage", "type_installation_ecs"]
+
 # Ordre des colonnes identique à celui du notebook
 FEATURES = [
     "code_postal_ban",

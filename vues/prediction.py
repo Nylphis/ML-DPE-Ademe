@@ -16,7 +16,7 @@ from typing import Any
 
 import streamlit as st
 
-from dpe.config import BINARY, FEATURES, REQUIRED
+from dpe.config import BINARY, CHAMPS_APPARTEMENT, FEATURES, REQUIRED
 from dpe.features import to_model_frame
 from vues.commun import MODELS, OPTIONS, echelle_dpe
 
@@ -39,8 +39,6 @@ LABELS = {
 
 LIBELLES_ETIQUETTE = {"A-B": "A ou B"}
 
-# Jamais renseignés pour les maisons dans les données ADEME : non transmis au modèle pour une maison
-CHAMPS_APPARTEMENT = ["type_installation_chauffage", "type_installation_ecs"]
 AIDE_APPARTEMENT = "Ignoré pour une maison : ce champ n’est jamais renseigné pour les maisons dans les données ADEME."
 
 # État propre à chaque session. Aucun renseignement n'est écrit sur le disque.
