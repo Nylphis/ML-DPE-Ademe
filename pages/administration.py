@@ -89,7 +89,7 @@ def suivi() -> None:
     if not en_cours(run):
         st.rerun()
     lien = f" [Suivre sur GitHub]({run['html_url']})" if run and run["status"] != "completed" else ""
-    st.info("Mise à jour en cours sur GitHub : quelques minutes en incrémental, une quinzaine avec une "
+    st.info("Mise à jour en cours sur GitHub : prévoir quelques minutes de base, une quinzaine avec une "
             "reconstruction complète, plus l’entraînement s’il est demandé. Si des fichiers changent, l’appli "
             "redémarre ensuite (environ 1 minute). Vous pouvez quitter cette page." + lien,
             icon=":material/hourglass_top:")
