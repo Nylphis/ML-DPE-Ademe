@@ -1,17 +1,15 @@
-"""Nettoyage des DPE bruts (repris des sections A.1 à A.9 du notebook).
+"""Nettoyage des DPE bruts vers data/processed/dpe_clean.csv.
 
-Seules les cellules de contrôle (print, aperçus, appels à values_agg) ont été
-retirées. Différence volontaire avec le notebook : l'encodage ordinal de la
-section A.10 n'est plus fait ici mais dans le pipeline sklearn (train.py),
-pour que l'appli puisse envoyer les libellés bruts au modèle.
+Deux modes :
+- complet (run) : nettoyage de tout le fichier brut ;
+- incrémental (run_incremental) : nettoyage des DPE créés ou modifiés, puis
+  fusion dans le fichier existant.
 
-Second changement : le dropna() final ne porte plus que sur les cibles. Il
-retirait toutes les maisons (certains champs ne sont jamais renseignés pour
-elles). Les valeurs manquantes sont désormais encodées comme « inconnues »
-dans le pipeline (voir build_preprocessor dans train.py).
-
-Mise à jour incrémentale (run_incremental) : les DPE créés ou modifiés depuis
-la dernière mise à jour sont nettoyés puis fusionnés dans le fichier existant.
+Libellés gardés bruts : l'encodage est fait dans les pipelines (train.py), ce
+qui permet à l'appli et à l'API d'envoyer les saisies telles quelles. Valeurs
+manquantes conservées (encodées « inconnues » par les pipelines) : seules les
+lignes sans cible, code postal ou type de logement sont retirées. Un dropna
+complet retirerait toutes les maisons, dont certains champs ne sont jamais renseignés.
 """
 
 import json
@@ -28,9 +26,28 @@ log = logging.getLogger(__name__)
 
 
 def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Nettoie un tableau de DPE bruts.
+
+    Parameters
+    ----------
+    dfExistant : DataFrame
+        DPE bruts (colonnes COLONNES_API de fetch.py).
+
+    Returns
+    -------
+    df : DataFrame
+        Colonnes TARGETS + FEATURES + EXTRA.
+    stats : dict
+        Effectifs, taux de manquants, groupes d'adresses.
+
+    Raises
+    ------
+    ValueError
+        Colonne attendue absente du fichier brut.
+    """
     stats = {"n_brut": len(dfExistant)}
 
-    # 1. Normalisation des noms de colonnes
+    # Noms de colonnes : BOM, espaces
     dfExistant = dfExistant.copy()
     dfExistant.columns = (
         dfExistant.columns
@@ -39,7 +56,7 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         .str.replace(" ", "_")
     )
 
-    # 3. Filtre du périmètre (version et immeubles déjà filtrés par l'API, gardés par sécurité)
+    # Périmètre (version et immeubles déjà filtrés par l'API : contrôle redondant)
     dfFiltre = dfExistant[
         (dfExistant["type_batiment"] != "immeuble")
         & (dfExistant["methode_application_dpe"] != "dpe appartement généré à partir des données DPE immeuble")
@@ -47,7 +64,6 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     ].copy()
     stats["n_perimetre"] = len(dfFiltre)
 
-    # 4. Sélection des variables
     ls_columns = [
         # cibles
         "etiquette_dpe",
@@ -82,11 +98,10 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     dfClean = dfFiltre[ls_columns].copy()
 
-    # Groupe d'évaluation : tous les DPE d'une même adresse BAN.
-    # Un DPE non géolocalisé forme un groupe à lui seul.
+    # Groupe = adresse BAN ; DPE sans adresse : groupe à lui seul
     dfClean["groupe"] = dfClean["identifiant_ban"].fillna("dpe_" + dfClean["numero_dpe"].astype(str))
 
-    # Coordonnées pour la carte (_geopoint = "lat,lon")
+    # Coordonnées pour la carte : _geopoint = "lat,lon"
     coords = dfClean["_geopoint"].str.split(",", n=1, expand=True).reindex(columns=[0, 1])
     dfClean["latitude"] = pd.to_numeric(coords[0], errors="coerce")
     dfClean["longitude"] = pd.to_numeric(coords[1], errors="coerce")
@@ -94,32 +109,26 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     stats["pct_sans_adresse"] = round(dfClean["identifiant_ban"].isna().mean() * 100, 1)
     dfClean = dfClean.drop(columns=["identifiant_ban", "_geopoint"])
 
-    # Climatisation (0/1) à la place de la surface climatisée
+    # Surface climatisée -> climatisation 0/1
     dfClean["climatisation"] = (dfClean["surface_climatisee"].fillna(0) > 0).astype(int)
     dfClean = dfClean.drop(columns=["surface_climatisee"])
 
-    # 6. Générateur : principal, complété par l'installation n1 pour les versions DPE 2.1
+    # Générateur principal, complété par celui de l'installation n1 (DPE 2.1)
     dfClean["generateur"] = dfClean["type_generateur_chauffage_principal"].fillna(
         dfClean["type_generateur_n1_installation_n1"]
     )
     dfClean = dfClean.drop(columns=["type_generateur_chauffage_principal",
                                     "type_generateur_n1_installation_n1"])
 
-    # 7. Regroupement des générateurs en familles
-    # (un générateur non renseigné reste NaN, au lieu de tomber dans « Autre »)
+    # Familles de générateurs ; non renseigné : reste NaN (distinct de « Autre »)
     connu = dfClean["generateur"].notna()
     dfClean.loc[connu, "generateur"] = dfClean.loc[connu, "generateur"].apply(famille_generateur)
 
-    # 9. Derniers ajustements
-    # Changement par rapport au notebook : plus de dropna() sur les variables
-    # explicatives. Il supprimait toutes les maisons, pour lesquelles certains
-    # champs ne sont jamais renseignés. Les NaN sont conservés ici et encodés
-    # comme « inconnus » dans le pipeline (train.py). Seules les lignes sans
-    # cible sont retirées.
+    # Manquants conservés (« inconnus » dans les pipelines) ; lignes sans cible retirées
     stats["manquants_pct"] = _taux_manquants(dfClean)
     dfClean = dfClean.dropna(subset=TARGETS + ["code_postal_ban", "type_batiment"])
 
-    # Fusion des classes A et B (A trop rare)
+    # A et B regroupées (A trop rare)
     dfClean["etiquette_dpe"] = dfClean["etiquette_dpe"].replace({"A": "A-B", "B": "A-B"})
 
     dfClean = _types(dfClean)
@@ -129,18 +138,18 @@ def clean(dfExistant: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
 
 def _types(df: pd.DataFrame) -> pd.DataFrame:
-    """10. Types (l'encodage ordinal est fait dans le pipeline)."""
-    # Code postal en catégorie (sinon traité comme une grandeur continue)
+    """Fixe les types des colonnes (modifie `df` en place et le renvoie)."""
+    # Texte : catégorie, pas grandeur continue
     df["code_postal_ban"] = df["code_postal_ban"].astype(str)
-    # Int64 (entier pandas) accepte les valeurs manquantes, contrairement à int.
+    # Int64 : entier acceptant les manquants
     for col in ["isolation_toiture", "logement_traversant", "nombre_niveau_logement"]:
         df[col] = df[col].astype("Int64")
     return df
 
 
 def _stats_clean(df: pd.DataFrame, stats: dict) -> None:
-    """Statistiques calculées sur le fichier nettoyé (complète `stats`)."""
-    stats["n_complet"] = int(df[FEATURES].notna().all(axis=1).sum())  # ce que gardait le dropna
+    """Ajoute à `stats` les statistiques du fichier nettoyé (effectifs, groupes d'adresses)."""
+    stats["n_complet"] = int(df[FEATURES].notna().all(axis=1).sum())  # lignes sans aucun manquant
     stats["n_clean"] = len(df)
     tailles = df[GROUP].value_counts()
     stats["groupes"] = {"n": int(len(tailles)), "taille_moyenne": round(float(tailles.mean()), 2),
@@ -150,7 +159,7 @@ def _stats_clean(df: pd.DataFrame, stats: dict) -> None:
 
 
 def _taux_manquants(df: pd.DataFrame) -> dict:
-    """% de valeurs manquantes par variable, globalement et par type de bâtiment."""
+    """Pourcentage de manquants par variable, global et par type de bâtiment."""
     cols = [c for c in FEATURES if c in df.columns]
     taux = {"tous": (df[cols].isna().mean() * 100).round(1).to_dict()}
     for type_bat, groupe in df.groupby("type_batiment"):
@@ -159,6 +168,13 @@ def _taux_manquants(df: pd.DataFrame) -> dict:
 
 
 def run(input_path=DATA_RAW, output_path=DATA_CLEAN):
+    """Nettoyage complet : écrit le CSV nettoyé et CLEAN_STATS.
+
+    Returns
+    -------
+    DataFrame
+        DPE nettoyés.
+    """
     df_brut = pd.read_csv(input_path)
     df_clean, stats = clean(df_brut)
 
@@ -181,7 +197,7 @@ def run(input_path=DATA_RAW, output_path=DATA_CLEAN):
 
 
 def _meme_contenu(a: pd.DataFrame, b: pd.DataFrame) -> bool:
-    """Vrai si les deux tables ont les mêmes lignes, une fois écrites en CSV."""
+    """Vrai si les deux tables ont les mêmes lignes une fois écrites en CSV (ordre ignoré)."""
     def texte(df):
         return df.sort_values(ID_DPE).to_csv(index=False)
     return len(a) == len(b) and texte(a) == texte(b)
@@ -190,17 +206,21 @@ def _meme_contenu(a: pd.DataFrame, b: pd.DataFrame) -> bool:
 def run_incremental(input_path=DATA_NOUVEAUX, output_path=DATA_CLEAN):
     """Nettoie les DPE créés ou modifiés et les fusionne dans le fichier nettoyé.
 
-    - un DPE retéléchargé remplace sa version précédente (même numero_dpe), ou la
-      retire s'il ne passe plus le nettoyage ;
-    - un DPE remplacé par un nouveau (numero_dpe_remplace) est retiré, comme le
-      fait l'ADEME dans son jeu de données.
-    Les DPE supprimés par l'ADEME ne sont pas détectés : seule une reconstruction
-    complète (python run.py fetch clean --refetch) les retire.
+    Returns
+    -------
+    DataFrame or None
+        Fichier fusionné ; None si rien de nouveau (fichier non réécrit).
 
-    Statistiques : celles des données brutes (n_brut, n_perimetre, taux de
-    manquants…) restent celles de la dernière reconstruction complète ; celles du
-    fichier nettoyé (n_clean, groupes…) sont recalculées sur le fichier fusionné.
-    Renvoie le DataFrame fusionné, ou None s'il n'y a rien de nouveau.
+    Notes
+    -----
+    - DPE retéléchargé : remplace sa version précédente (même numero_dpe), ou
+      la retire s'il ne passe plus le nettoyage.
+    - DPE remplacé (numero_dpe_remplace) : retiré, comme dans le jeu ADEME.
+    - DPE supprimé par l'ADEME : non détecté ; retiré seulement par une
+      reconstruction complète (python run.py fetch clean --refetch).
+    - Statistiques des données brutes (n_brut, taux de manquants…) : celles de
+      la dernière reconstruction complète. Statistiques du fichier nettoyé :
+      recalculées.
     """
     if input_path.stat().st_size == 0:
         log.info("Aucun DPE nouveau ou modifié : fichier nettoyé inchangé.")
@@ -211,8 +231,8 @@ def run_incremental(input_path=DATA_NOUVEAUX, output_path=DATA_CLEAN):
 
     df_existant = pd.read_csv(output_path, dtype={"code_postal_ban": str, GROUP: str, ID_DPE: str})
     a_retirer = df_existant[ID_DPE].isin(a_remplacer)
-    # Le départ inclut le jour de la dernière mise à jour : ses DPE reviennent à
-    # chaque passage. S'ils n'ont pas changé, on ne réécrit rien (pas de commit inutile).
+    # DPE du jour de départ retéléchargés à chaque passage : si inchangés,
+    # rien n'est réécrit (pas de commit inutile du workflow)
     if _meme_contenu(_types(df_existant[a_retirer].copy()), df_nouveaux):
         log.info("%d DPE retéléchargés, tous identiques : fichier nettoyé inchangé.", len(df_brut))
         return None

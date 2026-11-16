@@ -1,10 +1,9 @@
-"""Page Prédiction : formulaire du logement, estimation de l'étiquette et de la consommation.
+"""Page Prédiction : formulaire du logement, étiquette et consommation estimées.
 
-Le formulaire suit exactement le contrat d'entrée du modèle (dpe/config.py).
-Les options proposées sont lues dans models/metadata.json, donc toujours
-cohérentes avec les catégories vues à l'entraînement. Seuls les champs de
-REQUIRED sont obligatoires : un champ laissé vide est envoyé au modèle comme
-« inconnu », une situation qu'il a apprise sur les données ADEME.
+Champs = contrat d'entrée des modèles (FEATURES). Options lues dans
+models/metadata.json : toujours cohérentes avec les catégories d'entraînement.
+Seuls les champs REQUIRED sont obligatoires ; champ vide envoyé comme
+« inconnu », cas appris sur les données ADEME.
 """
 
 import csv
@@ -41,13 +40,24 @@ LIBELLES_ETIQUETTE = {"A-B": "A ou B"}
 
 AIDE_APPARTEMENT = "Ignoré pour une maison : ce champ n’est jamais renseigné pour les maisons dans les données ADEME."
 
-# État propre à chaque session. Aucun renseignement n'est écrit sur le disque.
+# État propre à chaque session ; rien n'est écrit sur le disque
 st.session_state.setdefault("validated_housing", None)
 st.session_state.setdefault("prediction_result", None)
 
 
 def predict_logement(features: dict[str, Any]) -> dict[str, Any]:
-    """Passe une ligne aux deux pipelines (prétraitement inclus)."""
+    """Estimation d'un logement par les deux pipelines.
+
+    Parameters
+    ----------
+    features : dict
+        Saisie validée (clés FEATURES).
+
+    Returns
+    -------
+    dict
+        Clés etiquette_dpe et conso_5_usages_ef.
+    """
     clf, reg, _ = MODELS
     X = to_model_frame(features)
     return {
@@ -60,14 +70,17 @@ def predict_logement(features: dict[str, Any]) -> dict[str, Any]:
 # Widgets
 # ------------------------------------------------
 def label(field: str) -> str:
+    """Libellé du champ, suivi de « * » s'il est obligatoire."""
     return LABELS[field] + (" *" if field in REQUIRED else "")
 
 
 def placeholder(field: str) -> str:
+    """Texte affiché tant que le champ est vide."""
     return "Choisir une valeur" if field in REQUIRED else "Je ne sais pas"
 
 
 def select_category(field: str, help_text: str | None = None) -> Any:
+    """Liste déroulante des modalités du champ ; None si non renseigné."""
     return st.selectbox(
         label(field),
         options=OPTIONS[field],
@@ -80,6 +93,7 @@ def select_category(field: str, help_text: str | None = None) -> Any:
 
 
 def select_binary(field: str, help_text: str) -> int | None:
+    """Liste Oui/Non (1/0) ; None si non renseigné."""
     return st.selectbox(
         label(field),
         options=[0, 1],
@@ -93,6 +107,13 @@ def select_binary(field: str, help_text: str) -> int | None:
 
 
 def validate_housing(data: dict[str, Any]) -> list[str]:
+    """Contrôle de la saisie.
+
+    Returns
+    -------
+    list of str
+        Messages d'erreur ; liste vide si la saisie est valide.
+    """
     errors = []
     for field in REQUIRED:
         if data.get(field) is None:
@@ -114,6 +135,7 @@ def validate_housing(data: dict[str, Any]) -> list[str]:
 
 
 def housing_csv(data: dict[str, Any]) -> str:
+    """Saisie validée en CSV (en-tête + une ligne)."""
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=FEATURES)
     writer.writeheader()
@@ -122,10 +144,12 @@ def housing_csv(data: dict[str, Any]) -> str:
 
 
 def sans_objet(payload: dict[str, Any], field: str) -> bool:
+    """Vrai si le champ est ignoré pour ce logement (maison, CHAMPS_APPARTEMENT)."""
     return payload["type_batiment"] == "maison" and field in CHAMPS_APPARTEMENT
 
 
 def display_value(field: str, value: Any) -> str:
+    """Valeur lisible pour le récapitulatif."""
     if value is None:
         return "Non renseigné (inconnu)"
     if field in BINARY:
@@ -205,7 +229,7 @@ with st.form("formulaire_logement", clear_on_submit=False):
 if submitted:
     errors = validate_housing(data)
     if errors:
-        # Une soumission invalide ne conserve pas un ancien résultat visible.
+        # Saisie invalide : ancien résultat effacé
         st.session_state["validated_housing"] = None
         st.session_state["prediction_result"] = None
         for error in errors:
@@ -222,7 +246,7 @@ if submitted:
         try:
             st.session_state["prediction_result"] = predict_logement(payload)
         except Exception:  # noqa: BLE001
-            # Détail de l'erreur dans la console du serveur, pas dans la page
+            # Détail dans le log du serveur, pas dans la page
             logging.exception("Échec de la prédiction")
             st.error("L’estimation n’a pas pu être calculée.")
 

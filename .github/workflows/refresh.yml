@@ -1,16 +1,16 @@
-# Mise à jour des données DPE (et réentraînement à la demande), hors de Render.
+# Mise à jour des données DPE et réentraînement à la demande, hors de Render.
 #
-# - Automatique le 1er de chaque mois : mise à jour incrémentale, sans réentraînement.
-# - À la main (onglet Actions > Mise à jour des données > Run workflow, ou page Administration
-#   de l'appli) : mêmes étapes, avec deux options, reconstruction complète et réentraînement.
-# Les fichiers modifiés sont commités sur la branche lancée (main) : Render se redéploie seul.
-# Prérequis : Settings > Actions > General > Workflow permissions > Read and write permissions.
+# - Automatique, le 1er de chaque mois : mise à jour incrémentale, sans réentraînement.
+# - Manuel (onglet Actions > Run workflow, ou page Administration de l'appli) :
+#   options reconstruction complète et réentraînement.
+# Fichiers modifiés commités sur la branche lancée (main) ; Render redéploie ensuite.
+# Droit d'écriture accordé par le bloc permissions ci-dessous.
 
 name: Mise à jour des données
 
 on:
   schedule:
-    - cron: "0 3 1 * *"   # le 1er du mois à 3 h UTC
+    - cron: "0 3 1 * *"   # 1er du mois, 3 h UTC
   workflow_dispatch:
     inputs:
       complet:
@@ -22,7 +22,7 @@ on:
         type: boolean
         default: false
 
-# Une seule mise à jour à la fois ; une nouvelle demande attend la fin de la précédente
+# Une mise à jour à la fois ; nouvelle demande en attente de la précédente
 concurrency:
   group: mise-a-jour-donnees
   cancel-in-progress: false
@@ -45,8 +45,8 @@ jobs:
       - name: Installer les dépendances
         run: pip install -r requirements.txt
 
-      # github.event.inputs : toujours du texte ("true"/"false"), qu'on lance depuis l'onglet Actions ou
-      # depuis la page Administration de l'appli. Lancement automatique : vide, donc mise à jour incrémentale.
+      # github.event.inputs : texte ("true"/"false"), quel que soit le mode de lancement.
+      # Lancement automatique : vide -> mise à jour incrémentale.
       - name: Récupérer et nettoyer les données
         env:
           COMPLET: ${{ github.event.inputs.complet }}

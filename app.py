@@ -1,12 +1,12 @@
-"""DPE Lyon : application Streamlit de simulation.
+"""DPE Lyon : application Streamlit, configuration et menu.
+
+Une page par fichier dans vues/ ; éléments communs dans vues/commun.py.
+Nouvelle page : créer vues/<nom>.py, puis ajouter une ligne st.Page ci-dessous.
+Dossier nommé vues/ et non pages/ : un dossier pages/ déclencherait le menu
+automatique de Streamlit au démarrage.
 
 Lancement (depuis la racine du projet) : python -m streamlit run app.py
-Prérequis : modèles entraînés avec `python run.py` (dossier models/).
-
-Ce fichier ne contient que la configuration et la navigation. Chaque page a
-son propre fichier dans vues/ ; les éléments communs (modèles, échelle DPE)
-sont dans vues/commun.py. Pour ajouter une page : créer vues/<nom>.py, puis
-ajouter une ligne st.Page ci-dessous.
+Prérequis : modèles dans models/ (python run.py).
 """
 
 import streamlit as st

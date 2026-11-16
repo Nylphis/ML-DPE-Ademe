@@ -1,13 +1,14 @@
-"""Page Administration : lancer la mise à jour des données et le réentraînement.
+"""Page Administration : mise à jour des données, réentraînement, lien vers l'API.
 
-Les traitements ne tournent pas ici (512 Mo sur Render) : la page lance le
-workflow GitHub Actions .github/workflows/refresh.yml, qui pousse les fichiers
-mis à jour sur main ; Render redéploie alors l'appli.
+Traitements hors de Render (512 Mo) : la page lance le workflow GitHub
+Actions .github/workflows/refresh.yml, qui pousse les fichiers modifiés sur
+main ; Render redéploie ensuite l'appli.
 
-Configuration (variables d'environnement, jamais dans le code) :
-- GITHUB_TOKEN  : jeton GitHub limité au dépôt, droit « Actions : lecture et écriture » ;
-- GITHUB_DEPOT  : dépôt au format propriétaire/nom (par défaut Nylphis/m2_enedis) ;
-- GITHUB_BRANCHE : branche sur laquelle lancer le workflow (par défaut main).
+Variables d'environnement (jamais dans le code) :
+- GITHUB_TOKEN : jeton limité au dépôt, droit « Actions : lecture et écriture » ;
+- GITHUB_DEPOT : propriétaire/nom du dépôt (défaut : Nylphis/m2_enedis) ;
+- GITHUB_BRANCHE : branche du workflow (défaut : main) ;
+- URL_API : adresse de l'API des modèles (défaut : service Render).
 """
 
 import json
@@ -22,10 +23,10 @@ import streamlit as st
 from dpe.config import CLEAN_STATS
 from vues.commun import METADATA
 
-# Page ouverte à tous : identifiants volontairement publics et préremplis
+# Page ouverte à tous : identifiants publics, préremplis
 IDENTIFIANT, MOT_DE_PASSE = "admin", "admin"
 
-PARIS = ZoneInfo("Europe/Paris")  # GitHub et les fichiers donnent l'heure en UTC
+PARIS = ZoneInfo("Europe/Paris")  # heures GitHub et fichiers en UTC
 
 URL_API = os.environ.get("URL_API", "https://m2-enedis-api.onrender.com")
 
@@ -37,13 +38,24 @@ JETON = os.environ.get("GITHUB_TOKEN")
 URL_WORKFLOW = f"{API_GITHUB}/repos/{DEPOT}/actions/workflows/{WORKFLOW}"
 EN_TETES = {"Accept": "application/vnd.github+json"} | ({"Authorization": f"Bearer {JETON}"} if JETON else {})
 
-# Id de la dernière exécution au moment du lancement : tant que GitHub n'en a pas créé une nouvelle, on attend
+# Exécution en cours au moment du lancement : attente tant qu'elle n'est pas remplacée
 CLE_RUN_AVANT = "run_avant_lancement"
 
 
 @st.cache_data(ttl=10, show_spinner=False)
 def dernier_run() -> dict | None:
-    """Dernière exécution du workflow (mise en cache 10 s pour ménager l'API GitHub)."""
+    """Dernière exécution du workflow sur BRANCHE (cache 10 s : ménage l'API GitHub).
+
+    Returns
+    -------
+    dict or None
+        Exécution au format de l'API GitHub ; None si aucune.
+
+    Raises
+    ------
+    requests.RequestException
+        GitHub injoignable ou réponse en erreur.
+    """
     reponse = requests.get(f"{URL_WORKFLOW}/runs", headers=EN_TETES,
                            params={"branch": BRANCHE, "per_page": 1}, timeout=15)
     reponse.raise_for_status()
@@ -52,10 +64,23 @@ def dernier_run() -> dict | None:
 
 
 def lancer(complet: bool, reentrainer: bool) -> None:
-    """Demande à GitHub de lancer le workflow (réponse 204 si accepté)."""
+    """Lance le workflow sur BRANCHE.
+
+    Parameters
+    ----------
+    complet : bool
+        Reconstruction complète au lieu de la mise à jour incrémentale.
+    reentrainer : bool
+        Réentraînement des modèles.
+
+    Raises
+    ------
+    requests.RequestException
+        Lancement refusé (jeton, dépôt ou branche invalides).
+    """
     reponse = requests.post(
         f"{URL_WORKFLOW}/dispatches", headers=EN_TETES, timeout=15,
-        # Valeurs en texte, comme dans la documentation de l'API ; le workflow les lit comme du texte
+        # Valeurs en texte (format documenté de l'API), lues comme texte par le workflow
         json={"ref": BRANCHE, "inputs": {"complet": str(complet).lower(), "reentrainer": str(reentrainer).lower()}},
     )
     reponse.raise_for_status()
@@ -65,7 +90,7 @@ def en_cours(run: dict | None) -> bool:
     """Vrai si une exécution vient d'être demandée ou n'est pas terminée."""
     id_run = run["id"] if run else None
     lancement = st.session_state.get(CLE_RUN_AVANT)
-    # Lancement demandé, GitHub n'a pas encore créé l'exécution (on abandonne l'attente après 2 minutes)
+    # Lancement demandé, exécution pas encore créée par GitHub (attente limitée à 2 minutes)
     if lancement and lancement["id"] == id_run and time.time() - lancement["heure"] < 120:
         return True
     st.session_state.pop(CLE_RUN_AVANT, None)
@@ -73,7 +98,7 @@ def en_cours(run: dict | None) -> bool:
 
 
 def date_fr(iso: str | None) -> str:
-    """« 2026-11-13T13:49:59+00:00 » devient « 13/11/2026 à 14:49 » (heure de Paris)."""
+    """Date ISO (UTC) en heure de Paris : « 2026-11-13T13:49:59Z » -> « 13/11/2026 à 14:49 »."""
     if not iso:
         return "inconnue"
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PARIS).strftime("%d/%m/%Y à %H:%M")
@@ -81,7 +106,7 @@ def date_fr(iso: str | None) -> str:
 
 @st.fragment(run_every="15s")
 def suivi() -> None:
-    """Affiche l'exécution en cours et recharge la page quand elle est terminée."""
+    """Suivi de l'exécution toutes les 15 s ; page rechargée à la fin."""
     dernier_run.clear()
     try:
         run = dernier_run()
@@ -162,7 +187,7 @@ if envoye:
         st.error("Identifiant ou mot de passe incorrect.")
     else:
         try:
-            # Dernière exécution relue sans cache juste avant le lancement : c'est elle qu'on attend de voir remplacée
+            # Dernière exécution relue sans cache : référence de l'attente
             dernier_run.clear()
             avant = dernier_run()
             lancer(complet, reentrainer)

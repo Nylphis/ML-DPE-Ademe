@@ -1,15 +1,14 @@
-"""Récupération des DPE via l'API ADEME (repris de ScrapAdemeAPI.py).
+"""Récupération des DPE via l'API ADEME (data-fair).
 
-Changements par rapport au script d'origine :
-- pagination activée : toutes les lignes sont récupérées (max_lignes pour un échantillon) ;
-- pas de nouveau téléchargement si le fichier brut correspond déjà à la même
-  requête (trace dans data/raw/fetch_info.json) : utiliser refetch=True pour forcer ;
-- écriture page par page dans un fichier .part, renommé seulement à la fin :
-  un téléchargement interrompu n'écrase pas le fichier précédent ;
-- nouvelles tentatives automatiques si une page échoue (coupure, surcharge de l'API).
+Deux modes :
+- complet (fetch) : tous les DPE du périmètre ; pas de nouvel appel si le
+  fichier brut correspond déjà à la même requête (cache, FETCH_INFO) ;
+- incrémental (fetch_nouveaux) : DPE créés ou modifiés depuis la date de
+  modification la plus récente du fichier nettoyé.
 
-Mise à jour incrémentale (fetch_nouveaux) : seuls les DPE créés ou modifiés depuis
-la date de modification la plus récente du fichier nettoyé sont téléchargés.
+Écriture page par page dans un fichier .part renommé à la fin : un
+téléchargement interrompu n'écrase pas le fichier précédent. Nouvelles
+tentatives automatiques en cas d'échec d'une page.
 """
 
 import json
@@ -52,7 +51,7 @@ COLONNES_API = [
     "surface_climatisee",
     "logement_traversant",
     "type_generateur_n1_installation_n1",
-    # Localisation : découpage train/test par adresse, carte et filtres de l'appli
+    # Localisation : découpage train/test par adresse, carte, filtres
     "identifiant_ban",
     "nom_commune_ban",
     "_geopoint",
@@ -69,9 +68,19 @@ TENTATIVES = 5
 
 
 def _requete(max_lignes, depuis=None):
-    """Paramètres qui définissent le contenu du fichier brut (sert aussi de clé de cache).
+    """Paramètres de la requête, aussi utilisés comme clé de cache.
 
-    depuis (AAAA-MM-JJ) : seulement les DPE modifiés ce jour-là ou après.
+    Parameters
+    ----------
+    max_lignes : int or None
+        Taille de l'échantillon ; None pour tout récupérer.
+    depuis : str, optional
+        Date AAAA-MM-JJ : seulement les DPE modifiés ce jour-là ou après.
+
+    Returns
+    -------
+    dict
+        Clés "qs", "select" et "max_lignes".
     """
     qs = (
         f"code_postal_ban:({' OR '.join(CODES_POSTAUX)})"
@@ -88,7 +97,14 @@ def _requete(max_lignes, depuis=None):
 
 
 def deja_telecharge(output=DATA_RAW, max_lignes=None) -> dict | None:
-    """Renvoie la trace du téléchargement si le fichier brut correspond à la requête."""
+    """Trace du téléchargement si le fichier brut correspond à la requête.
+
+    Returns
+    -------
+    dict or None
+        Contenu de FETCH_INFO, ou None si fichier absent, requête différente
+        ou téléchargement inachevé.
+    """
     if not (output.exists() and FETCH_INFO.exists()):
         return None
     info = json.loads(FETCH_INFO.read_text(encoding="utf-8"))
@@ -98,7 +114,13 @@ def deja_telecharge(output=DATA_RAW, max_lignes=None) -> dict | None:
 
 
 def _get(url, params):
-    """GET avec nouvelles tentatives (attente 2, 4, 8, 16 s)."""
+    """GET JSON avec nouvelles tentatives (attente 2, 4, 8, 16 s).
+
+    Raises
+    ------
+    requests.RequestException
+        Après TENTATIVES échecs.
+    """
     for tentative in range(1, TENTATIVES + 1):
         try:
             response = requests.get(url, params=params, timeout=120)
@@ -113,8 +135,16 @@ def _get(url, params):
 
 
 def _telecharger(requete, output, max_lignes=None):
-    """Écrit dans `output` les lignes de la requête ; renvoie (lignes écrites, total annoncé par l'API)."""
-    # Vérification : les colonnes demandées existent-elles dans l'API ?
+    """Écrit dans `output` toutes les pages de la requête.
+
+    Returns
+    -------
+    n_lignes : int
+        Lignes écrites.
+    total : int or None
+        Total annoncé par l'API.
+    """
+    # Colonnes demandées absentes de l'API : avertissement seulement
     schema = _get(URL_DATASET, None)["schema"]
     cles_api = {champ["key"] for champ in schema}
     absentes = [c for c in COLONNES_API if c not in cles_api]
@@ -130,29 +160,41 @@ def _telecharger(requete, output, max_lignes=None):
     with open(partiel, "w", encoding="utf-8", newline="") as f:
         while url and (max_lignes is None or n_lignes < max_lignes):
             data = _get(url, params)
-            total = data.get("total", total)
+            total = data.get("total", total)  # total présent sur la première page seulement
             lignes = data["results"]
             if max_lignes is not None:
                 lignes = lignes[: max_lignes - n_lignes]
             if not lignes:
                 break
-            # columns=COLONNES_API : même ordre de colonnes sur toutes les pages
+            # Même ordre de colonnes sur toutes les pages
             pd.DataFrame(lignes, columns=COLONNES_API).to_csv(f, index=False, header=(n_lignes == 0))
             n_lignes += len(lignes)
             log.info("Lignes récupérées : %d / %s (%.0f s)", n_lignes, total, time.time() - debut)
 
-            url = data.get("next")  # les paramètres sont déjà présents dans next
+            url = data.get("next")  # pagination par curseur : paramètres inclus dans next
             params = None
-            time.sleep(0.2)  # évite de surcharger l'API
+            time.sleep(0.2)  # ménage l'API
 
     partiel.replace(output)
     return n_lignes, total
 
 
 def fetch(output=DATA_RAW, refetch=False, max_lignes=None):
-    """Télécharge les DPE dans `output` et renvoie le nombre de lignes écrites.
+    """Téléchargement complet des DPE du périmètre.
 
-    max_lignes=None récupère tout ; un entier limite à un échantillon (ex. 10000).
+    Parameters
+    ----------
+    output : Path, default=DATA_RAW
+        Fichier CSV brut.
+    refetch : bool, default=False
+        Retélécharger même si le cache correspond.
+    max_lignes : int, optional
+        Échantillon (ex. 10000) ; None pour tout récupérer.
+
+    Returns
+    -------
+    int
+        Nombre de lignes du fichier brut.
     """
     requete = _requete(max_lignes)
     info = deja_telecharge(output, max_lignes)
@@ -175,7 +217,18 @@ def fetch(output=DATA_RAW, refetch=False, max_lignes=None):
 
 
 def date_derniere_maj(clean_path=DATA_CLEAN) -> str:
-    """Date de modification la plus récente du fichier nettoyé (AAAA-MM-JJ)."""
+    """Date de modification la plus récente du fichier nettoyé.
+
+    Returns
+    -------
+    str
+        Date AAAA-MM-JJ.
+
+    Raises
+    ------
+    ValueError
+        Colonne DATE_MAJ absente : reconstruction complète nécessaire.
+    """
     colonnes = pd.read_csv(clean_path, nrows=0).columns
     if DATE_MAJ not in colonnes:
         raise ValueError(f"{clean_path.name} n'a pas de colonne {DATE_MAJ} : faire d'abord "
@@ -184,10 +237,15 @@ def date_derniere_maj(clean_path=DATA_CLEAN) -> str:
 
 
 def fetch_nouveaux(output=DATA_NOUVEAUX, clean_path=DATA_CLEAN):
-    """Télécharge les DPE créés ou modifiés depuis la dernière mise à jour ; renvoie le nombre de lignes.
+    """Téléchargement incrémental : DPE créés ou modifiés depuis la dernière mise à jour.
 
-    La date de départ est incluse : les DPE de ce jour-là déjà connus sont
-    retéléchargés, puis dédoublonnés au nettoyage (clean.run_incremental).
+    Date de départ incluse : les DPE de ce jour-là reviennent à chaque passage,
+    dédoublonnés ensuite par clean.run_incremental.
+
+    Returns
+    -------
+    int
+        Nombre de lignes téléchargées (0 : fichier vide).
     """
     depuis = date_derniere_maj(clean_path)
     log.info("Mise à jour incrémentale : DPE modifiés depuis le %s", depuis)

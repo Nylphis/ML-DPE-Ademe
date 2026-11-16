@@ -1,6 +1,6 @@
 """Éléments partagés par les pages : modèles, métadonnées, échelle DPE, formats.
 
-Ce fichier n'est pas une page : il n'est pas déclaré dans st.navigation (app.py).
+Module importé par les pages, non déclaré dans st.navigation (app.py).
 """
 
 import json
@@ -13,10 +13,11 @@ from dpe.config import CLF_PATH, METADATA_PATH, REG_PATH
 
 
 # ------------------------------------------------
-# Chargement des modèles (une seule fois par processus)
+# Modèles (chargés une fois par processus)
 # ------------------------------------------------
 @st.cache_resource
 def load_models() -> tuple[Any, Any, dict] | None:
+    """Classifieur, régresseur et métadonnées ; None si un fichier manque."""
     if not all(p.exists() for p in (CLF_PATH, REG_PATH, METADATA_PATH)):
         return None
     metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
@@ -36,7 +37,18 @@ COULEURS_DPE = {"A": "#009c6d", "B": "#52b153", "C": "#78bd76", "D": "#f4e70f",
 
 
 def echelle_dpe(etiquette: str | None = None) -> str:
-    """Image SVG de l'échelle DPE (A à G). Si une étiquette est donnée, les autres classes sont estompées."""
+    """Échelle DPE (A à G) en SVG.
+
+    Parameters
+    ----------
+    etiquette : str, optional
+        Classe à mettre en avant (« A-B » : A et B) ; autres classes estompées.
+
+    Returns
+    -------
+    str
+        Code SVG, affichable avec st.image.
+    """
     surlignees = etiquette.split("-") if etiquette else list(COULEURS_DPE)
     barres = []
     for i, (lettre, couleur) in enumerate(COULEURS_DPE.items()):
@@ -57,4 +69,5 @@ def echelle_dpe(etiquette: str | None = None) -> str:
 
 
 def fmt_int(n: Any) -> str:
+    """Entier avec espace comme séparateur de milliers ; « — » si `n` n'est pas un entier."""
     return f"{n:,}".replace(",", " ") if isinstance(n, int) else "—"

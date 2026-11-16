@@ -1,18 +1,17 @@
-"""Interprétation des modèles retenus, pour le rapport de ML.
+"""Interprétation des modèles enregistrés, pour le rapport de ML.
 
-Recharge les modèles enregistrés (models/), reconstitue exactement le jeu de test
-de l'entraînement (même découpage par adresse que dpe/train.py) et produit dans reports/ :
-- matrice_confusion.png et .csv : classification, en % de chaque vraie classe
-  (la diagonale est le rappel de chaque classe) ;
-- importance_variables.png et .csv : importance par permutation des 14 variables
-  pour les deux modèles (baisse du score quand on mélange une variable).
+Jeu de test reconstitué à l'identique (même découpage par adresse que
+dpe/train.py). Sorties dans reports/ :
+- matrice_confusion.png et .csv : en % de chaque vraie classe (diagonale = rappel) ;
+- importance_variables.png et .csv : importance par permutation des 14
+  variables, pour les deux modèles.
 
-Le HistGradientBoosting n'a pas d'attribut feature_importances_ : la permutation
-mesure l'importance sur le jeu de test, variable d'origine par variable d'origine
-(et non colonne encodée par colonne encodée).
+Permutation plutôt que feature_importances_ (absent du HistGradientBoosting) :
+importance mesurée sur le jeu de test, par variable d'origine et non par
+colonne encodée.
 
-Prérequis : pip install matplotlib==3.11.2 (absent de requirements.txt, pour ne pas
-alourdir l'image Docker de l'appli, qui n'en a pas besoin).
+Prérequis : pip install matplotlib==3.11.2 (absent de requirements.txt, pour ne
+pas alourdir l'image Docker de l'appli, qui n'en a pas besoin).
 Lancement : python interpret_models.py   (environ 2 minutes)
 """
 
@@ -31,11 +30,11 @@ from dpe.config import (CLF_PATH, DATA_CLEAN, FEATURES, GROUP, METADATA_PATH, OR
 from dpe.features import to_model_frame
 from dpe.train import classification_metrics, regression_metrics, split_par_adresse
 
-matplotlib.use("Agg")  # images seulement, pas de fenêtre
+matplotlib.use("Agg")  # fichiers images, sans fenêtre
 log = logging.getLogger(__name__)
 
 REPORTS = ROOT / "reports"
-N_REPETITIONS = 5  # mélanges par variable : la moyenne et l'écart-type en sont tirés
+N_REPETITIONS = 5  # mélanges par variable (moyenne et écart-type)
 
 NOMS = {
     "code_postal_ban": "Code postal",
@@ -56,7 +55,7 @@ NOMS = {
 
 
 def jeu_de_test() -> pd.DataFrame:
-    """Même préparation et même découpage que dpe/train.py (run)."""
+    """Jeu de test de l'entraînement (même préparation et même découpage que train.run)."""
     df = pd.read_csv(DATA_CLEAN, dtype={"code_postal_ban": str, GROUP: str})
     df = pd.concat([df[[TARGET_CLF, TARGET_REG, GROUP]], to_model_frame(df)], axis=1)
     _, test = split_par_adresse(df)
@@ -64,7 +63,10 @@ def jeu_de_test() -> pd.DataFrame:
 
 
 def verifier_scores(clf_metrics: dict, reg_metrics: dict) -> None:
-    """Compare aux scores enregistrés : un écart signale des modèles entraînés sur d'autres données."""
+    """Compare l'accuracy et la MAE recalculées à metadata.json.
+
+    Écart : modèles entraînés sur d'autres données (avertissement dans le log).
+    """
     attendus = json.loads(METADATA_PATH.read_text(encoding="utf-8"))["metriques"]
     for nom, obtenu, attendu in [("accuracy", clf_metrics["accuracy"], attendus["classification"]["accuracy"]),
                                  ("MAE", reg_metrics["mae"], attendus["regression"]["mae"])]:
@@ -76,6 +78,7 @@ def verifier_scores(clf_metrics: dict, reg_metrics: dict) -> None:
 
 
 def matrice_confusion(y_true: pd.Series, y_pred) -> None:
+    """Écrit la matrice de confusion : effectifs (CSV) et % par vraie classe (PNG)."""
     effectifs = confusion_matrix(y_true, y_pred, labels=ORDRE_ETIQUETTES)
     pd.DataFrame(effectifs, index=ORDRE_ETIQUETTES, columns=ORDRE_ETIQUETTES).rename_axis(
         index="vraie classe", columns="classe prédite").to_csv(REPORTS / "matrice_confusion.csv")
@@ -93,7 +96,16 @@ def matrice_confusion(y_true: pd.Series, y_pred) -> None:
 
 
 def importances(clf, reg, X, y_clf, y_reg) -> pd.DataFrame:
-    """Importance par permutation : F1 macro pour la classification, MAE pour la régression."""
+    """Importance par permutation des variables, pour les deux modèles.
+
+    Score : F1 macro (classification), MAE (régression).
+
+    Returns
+    -------
+    DataFrame
+        Index : variables ; colonnes : moyenne et écart-type par modèle.
+        Aussi écrit dans reports/importance_variables.csv.
+    """
     resultats = {}
     for cle, modele, y, score in [("classification", clf, y_clf, "f1_macro"),
                                   ("regression", reg, y_reg, "neg_mean_absolute_error")]:
@@ -108,6 +120,7 @@ def importances(clf, reg, X, y_clf, y_reg) -> pd.DataFrame:
 
 
 def graphique_importances(table: pd.DataFrame) -> None:
+    """Écrit le graphique des importances (deux panneaux, barres horizontales)."""
     fig, axes = plt.subplots(1, 2, figsize=(13, 6))
     for ax, cle, titre, unite in [
         (axes[0], "classification", "Étiquette DPE", "baisse du F1 macro"),
@@ -125,6 +138,7 @@ def graphique_importances(table: pd.DataFrame) -> None:
 
 
 def main() -> None:
+    """Produit les quatre fichiers de reports/."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     REPORTS.mkdir(exist_ok=True)
     test = jeu_de_test()

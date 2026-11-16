@@ -1,1 +1,1 @@
-"""Code partagé entre le pipeline (récupération, nettoyage, entraînement) et l'appli."""
+"""Pipeline DPE (récupération, nettoyage, entraînement) et code partagé avec l'appli et l'API."""

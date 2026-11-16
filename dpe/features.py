@@ -1,7 +1,7 @@
-"""Transformations réutilisées par le nettoyage et par les pipelines sauvegardés.
+"""Transformations communes au nettoyage, aux pipelines, à l'appli et à l'API.
 
-Ce module doit rester importable par l'appli : les pipelines .joblib
-référencent QuantileClipper, et joblib a besoin de retrouver la classe au chargement.
+Module importé au chargement des modèles : les pipelines .joblib référencent
+QuantileClipper, que joblib doit retrouver.
 """
 
 import numpy as np
@@ -12,11 +12,19 @@ from dpe.config import CATEGORICAL, FEATURES, ORDINAL
 
 
 def to_model_frame(rows) -> pd.DataFrame:
-    """Met des saisies (dict, liste de dict ou DataFrame) au format attendu par les pipelines.
+    """Met des saisies au format d'entrée des pipelines.
 
-    Les champs absents ou à None deviennent NaN, que le pipeline traite comme
-    « inconnu ». Les colonnes texte sont forcées en object : sans cela, une
-    colonne entièrement vide serait typée float et l'imputation échouerait.
+    Parameters
+    ----------
+    rows : dict, list of dict or DataFrame
+        Un ou plusieurs logements.
+
+    Returns
+    -------
+    DataFrame
+        Colonnes FEATURES dans l'ordre. Champs absents ou None : NaN (traités
+        comme « inconnus »). Colonnes texte en object, même entièrement vides
+        (sinon typées float, ce que l'imputation refuse) ; autres colonnes en float.
     """
     if isinstance(rows, pd.DataFrame):
         X = rows.reindex(columns=FEATURES).copy()
@@ -25,15 +33,27 @@ def to_model_frame(rows) -> pd.DataFrame:
     texte = CATEGORICAL + list(ORDINAL)
     X[texte] = X[texte].astype(object).where(X[texte].notna(), np.nan)
     autres = [c for c in FEATURES if c not in texte]
-    X[autres] = X[autres].apply(pd.to_numeric).astype(float)  # float comme à l’entraînement
+    X[autres] = X[autres].apply(pd.to_numeric).astype(float)  # même type qu'à l'entraînement
     return X
 
 
 def famille_generateur(libelle):
-    """Regroupe les libellés de générateurs en familles (code repris du notebook).
+    """Regroupe un libellé de générateur de chauffage en famille.
 
-    L'ordre des tests compte : "PAC hybride" doit tomber dans PAC,
-    "chaudière électrique" avant le cas électrique générique.
+    Parameters
+    ----------
+    libelle : str
+        Libellé ADEME du générateur.
+
+    Returns
+    -------
+    str
+        Famille (« PAC », « Bois », « Électrique direct »…), « Autre » par défaut.
+
+    Notes
+    -----
+    Ordre des tests significatif : « PAC hybride » -> PAC ; « chaudière
+    électrique » testée avant le cas électrique générique.
     """
     s = str(libelle).lower()
 
@@ -62,11 +82,19 @@ def famille_generateur(libelle):
 
 
 class QuantileClipper(BaseEstimator, TransformerMixin):
-    """Écrête chaque colonne entre ses quantiles calculés sur le jeu d'entraînement.
+    """Écrête chaque colonne entre deux quantiles appris sur le jeu d'entraînement.
 
-    Reproduit le clipping du notebook (section C.4), mais à l'intérieur du
-    pipeline : les bornes apprises sont sauvegardées avec le modèle et
-    réappliquées à la saisie de l'utilisateur.
+    Bornes sauvegardées avec le pipeline, puis réappliquées aux saisies.
+
+    Parameters
+    ----------
+    low, high : float, default=0.01, 0.99
+        Quantiles bas et haut.
+
+    Attributes
+    ----------
+    lower_, upper_ : ndarray
+        Bornes par colonne.
     """
 
     def __init__(self, low=0.01, high=0.99):

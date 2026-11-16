@@ -1,4 +1,4 @@
-"""Page Contexte : présentation du projet, des données et des performances des modèles."""
+"""Page Contexte : projet, données, répartition des étiquettes, performances des modèles."""
 
 import altair as alt
 import pandas as pd
@@ -10,7 +10,15 @@ from vues.commun import COULEURS_DPE, METADATA, MODELS, echelle_dpe, fmt_int
 
 @st.cache_data(show_spinner=False)
 def repartition_etiquettes() -> pd.DataFrame:
-    """Nombre et part de logements par étiquette (une seule colonne lue : peu de mémoire)."""
+    """Nombre et part de logements par étiquette.
+
+    Lecture de la seule colonne etiquette_dpe : empreinte mémoire minimale.
+
+    Returns
+    -------
+    DataFrame
+        Colonnes etiquette, logements, part ; une ligne par étiquette.
+    """
     etiquettes = pd.read_csv(DATA_CLEAN, usecols=["etiquette_dpe"])["etiquette_dpe"]
     effectifs = etiquettes.value_counts().reindex(ORDRE_ETIQUETTES, fill_value=0)
     return pd.DataFrame({"etiquette": effectifs.index, "logements": effectifs.values,
@@ -43,7 +51,7 @@ if par_type:
 
 if DATA_CLEAN.exists():
     repartition = repartition_etiquettes()
-    # A et B sont regroupées : la barre « A-B » prend la couleur du A
+    # Barre « A-B » : couleur du A
     couleurs = [COULEURS_DPE[e.split("-")[0]] for e in ORDRE_ETIQUETTES]
     graphique = (
         alt.Chart(repartition, title="Répartition des logements par étiquette DPE")

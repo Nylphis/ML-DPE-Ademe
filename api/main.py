@@ -1,11 +1,11 @@
-"""API des modèles DPE : estimer l'étiquette et la consommation d'un logement sans passer par l'appli.
+"""API des modèles DPE (FastAPI) : étiquette et consommation d'un logement, sans interface.
+
+Routes : POST /predict, GET /info ; documentation interactive sur /docs.
+Mêmes modèles, même mise en forme (to_model_frame) et mêmes règles que la
+page Prédiction : prédictions identiques à celles de l'appli.
 
 Lancement (depuis la racine du projet) :
     python -m uvicorn api.main:app --port 8000
-puis http://localhost:8000/docs pour la documentation interactive.
-
-Mêmes modèles, même mise en forme (to_model_frame) et mêmes règles que la page
-Prédiction : les prédictions sont identiques à celles de l'appli.
 """
 
 import json
@@ -20,7 +20,7 @@ from dpe.config import (BINARY, CHAMPS_APPARTEMENT, CLF_PATH, FEATURES, METADATA
                         REQUIRED)
 from dpe.features import to_model_frame
 
-# Chargement une seule fois, au démarrage
+# Chargement unique, au démarrage
 MODELES = None
 if all(p.exists() for p in (CLF_PATH, REG_PATH, METADATA_PATH)):
     MODELES = joblib.load(CLF_PATH), joblib.load(REG_PATH)
@@ -29,9 +29,15 @@ OPTIONS: dict[str, list] = METADATA.get("options", {})
 
 
 def _champ(champ: str):
-    """Type et contraintes d'un champ : liste fermée pour les catégories, bornes pour les nombres.
+    """Type Pydantic et contraintes d'un champ du modèle d'entrée.
 
-    Un champ facultatif vaut None par défaut (« inconnu », comme un champ laissé vide dans l'appli).
+    Catégories : liste fermée (valeurs vues à l'entraînement) ; nombres : bornes.
+
+    Returns
+    -------
+    tuple
+        (type, Field) pour create_model. Champ facultatif : None par défaut
+        (« inconnu », comme un champ vide dans l'appli).
     """
     contraintes = {}
     if champ in OPTIONS:
@@ -49,7 +55,7 @@ def _champ(champ: str):
     return Optional[type_], Field(default=None, **contraintes)
 
 
-# Modèle d'entrée construit à partir du contrat du modèle (FEATURES) et des valeurs vues à l'entraînement
+# Modèle d'entrée construit depuis FEATURES et les valeurs vues à l'entraînement
 Logement = create_model(
     "Logement",
     __config__=ConfigDict(extra="forbid", json_schema_extra={"examples": [
@@ -60,6 +66,8 @@ Logement = create_model(
 
 
 class Estimation(BaseModel):
+    """Réponse de POST /predict."""
+
     etiquette_dpe: str = Field(description="Classe estimée : A-B (A et B regroupées), C, D, E, F ou G")
     conso_5_usages_ef: float = Field(description="Consommation annuelle d'énergie finale estimée, en kWh/an")
     champs_non_renseignes: list[str] = Field(description="Champs absents, traités comme « inconnus » par le modèle")
@@ -75,11 +83,13 @@ app = FastAPI(
 
 @app.get("/", include_in_schema=False)
 def accueil():
+    """Redirection vers la documentation interactive."""
     return RedirectResponse("/docs")
 
 
 @app.get("/info", summary="Version, performances et valeurs acceptées")
 def info() -> dict:
+    """Date d'entraînement, champs obligatoires, valeurs acceptées, étiquettes et métriques."""
     return {
         "date_entrainement": METADATA.get("date_entrainement"),
         "champs_obligatoires": REQUIRED,
@@ -92,10 +102,17 @@ def info() -> dict:
 
 @app.post("/predict", summary="Estimer l'étiquette DPE et la consommation d'un logement")
 def predict(logement: Logement) -> Estimation:
+    """Estimation d'un logement.
+
+    Raises
+    ------
+    HTTPException
+        503 si les modèles sont absents. Saisie invalide : 422 (validation Pydantic).
+    """
     if MODELES is None:
         raise HTTPException(status_code=503, detail="Modèles non disponibles : lancer python run.py.")
     saisie = logement.model_dump()
-    # Même règle que l'appli : ces champs ne sont jamais renseignés pour une maison
+    # Comme l'appli : champs ignorés pour une maison
     sans_objet = CHAMPS_APPARTEMENT if saisie["type_batiment"] == "maison" else []
     for champ in sans_objet:
         saisie[champ] = None

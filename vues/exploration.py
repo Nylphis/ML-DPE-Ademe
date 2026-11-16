@@ -1,4 +1,8 @@
-"""Page Exploration des données DPE (filtres, KPI, graphiques, carte, exports)."""
+"""Page Exploration : filtres, indicateurs, graphiques, carte et export des DPE.
+
+Mémoire (512 Mo sur Render) : données chargées une fois et partagées
+(cache_resource), types compacts, carte et nuage de points sur un échantillon.
+"""
 
 import altair as alt
 import numpy as np
@@ -8,9 +12,9 @@ import streamlit as st
 from dpe.config import DATA_CLEAN, ORDINAL, ORDRE_ETIQUETTES
 from vues.commun import COULEURS_DPE, fmt_int
 
-TAILLE_ECHANTILLON = 3_000  # nb de points pour la carte et le nuage de points
+TAILLE_ECHANTILLON = 3_000  # points de la carte et du nuage de points
 
-# A et B sont regroupées dans les données, on prend la couleur du A pour "A-B"
+# « A-B » : couleur du A
 COULEURS_ETIQUETTES = {"A-B": COULEURS_DPE["A"],
                        **{e: COULEURS_DPE[e] for e in ORDRE_ETIQUETTES if e != "A-B"}}
 ECHELLE_COULEURS = alt.Scale(domain=ORDRE_ETIQUETTES,
@@ -23,7 +27,7 @@ COLONNES = [
     "type_energie_principale_ecs", "qualite_isolation_menuiseries",
 ]
 
-# variables proposées dans l'onglet Facteurs
+# Variables de l'onglet Facteurs
 FACTEURS = {
     "periode_construction": "Période de construction",
     "type_energie_principale_chauffage": "Énergie du chauffage",
@@ -35,18 +39,21 @@ FACTEURS = {
 }
 
 
-# chargement des données
-# cache_resource -> une seule copie en mémoire pour tout le monde (limite de 512 Mo sur Render)
 @st.cache_resource
 def charger_donnees() -> pd.DataFrame:
+    """Colonnes utiles de dpe_clean.csv, en types compacts, plus la consommation au m².
+
+    cache_resource : une seule copie en mémoire, partagée par toutes les sessions
+    (tableau à ne jamais modifier, seulement filtrer).
+    """
     df = pd.read_csv(DATA_CLEAN, usecols=COLONNES, dtype={"code_postal_ban": str})
 
-    # catégories ordonnées pour garder le bon ordre dans les graphiques
+    # Catégories ordonnées : ordre conservé dans les graphiques
     df["etiquette_dpe"] = pd.Categorical(df["etiquette_dpe"], categories=ORDRE_ETIQUETTES, ordered=True)
     for col, ordre in ORDINAL.items():
         df[col] = pd.Categorical(df[col], categories=ordre, ordered=True)
 
-    # colonnes texte en category pour prendre moins de place
+    # Texte en category : moins de mémoire
     for col in ["code_postal_ban", "nom_commune_ban", "type_batiment",
                 "type_energie_principale_chauffage", "generateur", "type_energie_principale_ecs"]:
         df[col] = df[col].astype("category")
@@ -54,7 +61,7 @@ def charger_donnees() -> pd.DataFrame:
     for col in ["conso_5_usages_ef", "latitude", "longitude", "surface_habitable_logement"]:
         df[col] = df[col].astype("float32")
 
-    # conso au m², pour comparer des logements de tailles différentes
+    # Consommation au m² : comparaison de logements de tailles différentes
     df["conso_m2"] = (df["conso_5_usages_ef"] / df["surface_habitable_logement"]).astype("float32")
     return df
 
@@ -89,9 +96,9 @@ with col2:
         "Exclure les 1 % de consommations les plus faibles et les plus fortes", value=True,
     )
 
-# on filtre avec un masque, sans toucher au tableau en cache
+# Filtrage par masque, sans modifier le tableau en cache
 masque = df["surface_habitable_logement"].between(surface_min, surface_max)
-if surface_max == SURFACE_MAX:  # curseur au max : on garde aussi les grandes surfaces
+if surface_max == SURFACE_MAX:  # curseur au maximum : grandes surfaces incluses
     masque |= df["surface_habitable_logement"] > SURFACE_MAX
 if codes_postaux:
     masque &= df["code_postal_ban"].isin(codes_postaux)
@@ -106,7 +113,7 @@ if df_f.empty:
     st.warning("Aucun logement ne correspond à ces filtres. Élargissez la sélection.")
     st.stop()
 
-# échantillon pour la carte et le nuage de points (afficher 200 000 points serait trop lourd)
+# Échantillon pour la carte et le nuage de points (200 000 points : trop lourd)
 echantillon = df_f.sample(min(TAILLE_ECHANTILLON, len(df_f)), random_state=0)
 
 # ---------- KPI ----------
@@ -153,7 +160,7 @@ with onglet_ensemble:
 
 # Consommation : histogramme, boxplots, nuage de points
 with onglet_conso:
-    # on calcule les classes avec numpy pour envoyer seulement 40 lignes au graphique
+    # Classes calculées avec numpy : 40 lignes envoyées au graphique
     surfaces = df_f["surface_habitable_logement"].dropna()
     effectifs, bords = np.histogram(surfaces.clip(upper=SURFACE_MAX), bins=40)
     histo = pd.DataFrame({"debut": bords[:-1], "fin": bords[1:], "logements": effectifs})
@@ -172,7 +179,7 @@ with onglet_conso:
     )
     st.altair_chart(graphique_histo, width="stretch")
 
-    # boxplots sur l'échantillon
+    # Boîtes à moustaches sur l'échantillon
     mesure = st.radio(
         "Mesure", ["Consommation au m² (kWh/m²/an)", "Consommation totale (kWh/an)"], horizontal=True,
     )
@@ -211,7 +218,7 @@ with onglet_conso:
     st.altair_chart(graphique_nuage, width="stretch")
     st.caption(f"{fmt_int(len(nuage))} logements tirés au hasard parmi {fmt_int(len(df_f))}.")
 
-# Facteurs : conso et étiquettes selon une variable choisie
+# Facteurs : consommation et étiquettes selon une variable choisie
 with onglet_facteurs:
     facteur = st.selectbox("Variable à étudier", list(FACTEURS), format_func=FACTEURS.get)
     libelle = FACTEURS[facteur]
@@ -221,7 +228,7 @@ with onglet_facteurs:
         .agg(logements=("etiquette_dpe", "size"), conso_m2=("conso_m2", "median"))
         .reset_index()
     )
-    par_modalite = par_modalite[par_modalite["logements"] >= 30]  # on enlève les modalités trop rares
+    par_modalite = par_modalite[par_modalite["logements"] >= 30]  # modalités trop rares exclues
     par_modalite[facteur] = par_modalite[facteur].astype(str)
     ordre_modalites = par_modalite[facteur].tolist()
 
@@ -241,7 +248,7 @@ with onglet_facteurs:
         )
         st.altair_chart(graphique_conso, width="stretch")
 
-        # barres empilées : part de chaque étiquette par modalité
+        # Barres empilées : part de chaque étiquette par modalité
         parts = (
             pd.crosstab(df_f[facteur], df_f["etiquette_dpe"], normalize="index")
             .stack().rename("part").reset_index()
@@ -273,7 +280,7 @@ with onglet_carte:
     afficher_carte = st.checkbox("Afficher la carte", value=True)
     if afficher_carte:
         points = echantillon[["latitude", "longitude", "etiquette_dpe"]].dropna().copy()
-                # st.map ne gère pas le float32, on repasse en float64 (seulement sur l'échantillon)
+        # st.map refuse le float32 : conversion en float64 (échantillon seulement)
         points[["latitude", "longitude"]] = points[["latitude", "longitude"]].astype("float64")
         points["couleur"] = points["etiquette_dpe"].astype(str).map(COULEURS_ETIQUETTES)
         st.map(points, latitude="latitude", longitude="longitude", color="couleur", size=20)
@@ -289,7 +296,7 @@ with onglet_donnees:
 
 
 def csv_selection() -> bytes:
-    # appelée seulement au clic sur le bouton
+    """Sélection filtrée en CSV (appelée au clic sur le bouton seulement)."""
     return df_f.to_csv(index=False).encode("utf-8-sig")
 
 

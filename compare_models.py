@@ -1,18 +1,17 @@
 """Comparaison des modèles candidats : forêt aléatoire et HistGradientBoosting.
 
-Chaque candidat est évalué deux fois, sur le même échantillon :
-- validation croisée par adresse (StratifiedGroupKFold) : l'évaluation retenue ;
-- validation croisée aléatoire (StratifiedKFold) : seulement pour mesurer
-  combien les DPE d'une même adresse gonflaient les scores.
+Chaque candidat est évalué deux fois sur le même échantillon :
+- validation croisée par adresse (StratifiedGroupKFold) : évaluation retenue ;
+- validation croisée aléatoire (StratifiedKFold) : mesure du gonflement des
+  scores dû aux DPE d'une même adresse.
 
-Utilise exactement le pipeline de train.py (make_model). Pour chaque candidat :
-scores, temps d'entraînement, taille du modèle sur l'échantillon et taille
-estimée sur le jeu complet.
+Même pipeline que train.py (make_model). Par candidat : scores, temps
+d'entraînement, taille du modèle sur l'échantillon et estimée sur le jeu complet.
 
 Lancement (depuis la racine, après `python run.py clean`) :
     python compare_models.py                  # 50 000 lignes
     python compare_models.py --lignes 20000   # plus rapide
-Résultats : reports/comparaison_modeles.csv
+Sortie : reports/comparaison_modeles.csv
 """
 
 import argparse
@@ -57,12 +56,13 @@ SCORE_PRINCIPAL = {"clf": "f1_macro", "reg": "rmse"}
 
 
 def charger() -> pd.DataFrame:
+    """Jeu nettoyé au format des pipelines (même préparation que train.run)."""
     df = pd.read_csv(DATA_CLEAN, dtype={"code_postal_ban": str, GROUP: str})
     return pd.concat([df[[TARGET_CLF, TARGET_REG, GROUP]], to_model_frame(df)], axis=1)
 
 
 def echantillon_par_adresse(df: pd.DataFrame, n_lignes: int) -> pd.DataFrame:
-    """Tire des adresses entières au hasard jusqu'à atteindre environ n_lignes."""
+    """Échantillon d'adresses entières tirées au hasard, environ `n_lignes` lignes."""
     if n_lignes >= len(df):
         return df
     tailles = df[GROUP].value_counts().sample(frac=1, random_state=RANDOM_STATE)
@@ -71,13 +71,23 @@ def echantillon_par_adresse(df: pd.DataFrame, n_lignes: int) -> pd.DataFrame:
 
 
 def taille_mo(model) -> float:
+    """Taille du modèle sérialisé (joblib, compress=3), en Mo."""
     buffer = io.BytesIO()
     joblib.dump(model, buffer, compress=3)
     return buffer.tell() / 1e6
 
 
 def evaluer(task, estimator, params, ech, plis, categories) -> dict:
-    """Validation croisée manuelle (permet d'écrêter la cible sur chaque train)."""
+    """Validation croisée d'un candidat.
+
+    Boucle manuelle : la cible de régression est écrêtée sur chaque train.
+
+    Returns
+    -------
+    dict
+        Scores moyens sur les plis, temps moyen, taille du dernier modèle,
+        taille du dernier train.
+    """
     scores, temps = [], []
     for i_train, i_test in plis:
         train, test = ech.iloc[i_train], ech.iloc[i_test]
@@ -97,18 +107,19 @@ def evaluer(task, estimator, params, ech, plis, categories) -> dict:
 
 
 def main(argv=None):
+    """Évalue tous les candidats et écrit reports/comparaison_modeles.csv."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--lignes", type=int, default=50_000, help="taille de l'échantillon")
     args = parser.parse_args(argv)
 
     df = charger()
-    categories = categories_from(df)  # sur tout le jeu, comme dans train.py
+    categories = categories_from(df)  # tout le jeu, comme train.py
     ech = echantillon_par_adresse(df, args.lignes).reset_index(drop=True)
-    n_train_complet = len(df) * (1 - 1 / N_PLIS)  # taille du train dans train.py
+    n_train_complet = len(df) * (1 - 1 / N_PLIS)  # taille du train de train.py
     print(f"Échantillon : {len(ech)} lignes, {ech[GROUP].nunique()} adresses "
           f"(jeu complet : {len(df)} lignes)\n")
 
-    # Mêmes plis pour tous les candidats, stratifiés sur l'étiquette dans les deux cas
+    # Mêmes plis pour tous les candidats, stratifiés sur l'étiquette
     y = ech[TARGET_CLF]
     decoupages = {
         "adresse": list(StratifiedGroupKFold(N_PLIS, shuffle=True, random_state=RANDOM_STATE)
@@ -127,7 +138,7 @@ def main(argv=None):
                             if k not in ("taille_mo", "n_fit", "temps_s")})
                 if decoupage == "adresse":
                     res.update(temps_s=r["temps_s"], taille_mo_ech=r["taille_mo"])
-                    # La taille d'une forêt croît avec le nombre de lignes, pas celle du HGB
+                    # Taille d'une forêt proportionnelle au nombre de lignes ; HGB : constante
                     facteur = n_train_complet / r["n_fit"] if estimator == "rf" else 1
                     res["taille_mo_complet_estimee"] = r["taille_mo"] * facteur
             res["ecart_aleatoire_adresse"] = res[f"{score}_aleatoire"] - res[f"{score}_adresse"]

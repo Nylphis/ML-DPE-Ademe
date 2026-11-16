@@ -1,14 +1,15 @@
-"""Entraînement des deux modèles et export pour l'appli.
+"""Entraînement des deux modèles et export pour l'appli et l'API.
 
-Reprend les sections B (classification) et C/E (régression) du notebook.
-Changements :
-- get_dummies remplacé par un OneHotEncoder dans un Pipeline sklearn, pour
-  que le prétraitement soit sauvegardé avec le modèle ;
-- découpage train/test par adresse (StratifiedGroupKFold) au lieu d'un tirage
-  aléatoire : 96 % des DPE partagent leur adresse avec d'autres, souvent
-  quasi identiques, ce qui gonflait les scores ;
-- un seul découpage, commun aux deux modèles (même jeu de test) ;
-- type de modèle choisi dans config.py (forêt aléatoire ou HistGradientBoosting).
+- Pipelines sklearn (prétraitement + modèle) sauvegardés en .joblib : les
+  saisies brutes sont encodées par le pipeline lui-même.
+- Découpage train/test par adresse BAN (StratifiedGroupKFold) : 96 % des DPE
+  partagent leur adresse avec d'autres, souvent quasi identiques ; un tirage
+  aléatoire gonflerait les scores.
+- Un seul découpage, commun aux deux modèles (même jeu de test).
+- Modèle et hyperparamètres choisis dans config.py.
+
+Sorties : models/classification_etiquette.joblib, models/regression_conso.joblib,
+models/metadata.json.
 """
 
 import json
@@ -47,12 +48,16 @@ ESTIMATORS = {
 
 
 def categories_from(df: pd.DataFrame) -> dict[str, list]:
-    """Catégories observées sur tout le jeu nettoyé, comme get_dummies dans le notebook.
+    """Catégories de chaque variable catégorielle, observées sur tout le jeu nettoyé.
 
-    Sans cela, une catégorie rare présente uniquement dans le jeu de test
-    (ex. « Bois – Plaquettes d'industrie ») fait échouer la prédiction.
-    « inconnu » est toujours ajoutée, même si la variable n'a aucun manquant
-    dans les données : l'appli peut alors l'envoyer sans erreur.
+    Calculées avant le découpage : une catégorie rare présente seulement dans
+    le jeu de test reste connue de l'encodeur.
+
+    Returns
+    -------
+    dict
+        {variable: modalités triées + VALEUR_INCONNUE}. « inconnu » toujours
+        présente, même sans manquant dans les données.
     """
     return {c: sorted(df[c].dropna().unique().tolist()) + [VALEUR_INCONNUE]
             for c in CATEGORICAL}
@@ -61,26 +66,32 @@ def categories_from(df: pd.DataFrame) -> dict[str, list]:
 def build_preprocessor(categories: dict[str, list], clip_numeric: bool) -> ColumnTransformer:
     """Prétraitement commun aux deux modèles.
 
-    - categories fixées sur tout le jeu + drop="first" reproduisent
-      get_dummies(drop_first=True) appliqué avant le split dans le notebook.
-    - handle_unknown="error" : une catégorie jamais vue fait échouer la
-      prédiction au lieu d'être silencieusement encodée comme la catégorie
-      de référence (le bug « chauffage au bois »).
+    Parameters
+    ----------
+    categories : dict
+        Catégories fixées pour le one-hot (voir categories_from).
+    clip_numeric : bool
+        Écrêter les variables numériques (régression).
 
-    Valeurs manquantes (remplace le dropna du notebook) :
-    - catégorielles : catégorie « inconnu », encodée comme les autres ;
-    - ordinales : -1, en dessous de la première modalité ;
-    - binaires : -1 (ni 0 ni 1) ;
-    - numériques : médiane du jeu d'entraînement + colonne indicatrice
-      « valeur manquante » (seulement si la variable a des manquants à l'entraînement).
-    Les forêts aléatoires peuvent isoler ces valeurs dans leurs propres branches.
+    Returns
+    -------
+    ColumnTransformer
+
+    Notes
+    -----
+    - One-hot avec drop="first" ; handle_unknown="error" : une catégorie
+      inconnue fait échouer la prédiction au lieu d'être confondue en
+      silence avec la catégorie de référence.
+    - Valeurs manquantes : catégorielles -> « inconnu » ; ordinales et
+      binaires -> -1 ; numériques -> médiane du train + indicatrice
+      (si manquants à l'entraînement).
     """
     categorical = Pipeline([
         ("inconnu", SimpleImputer(strategy="constant", fill_value=VALEUR_INCONNUE)),
         ("onehot", OneHotEncoder(categories=[categories[c] for c in CATEGORICAL],
                                  drop="first", handle_unknown="error", sparse_output=False)),
     ])
-    # np.nan en dernière position : autorise les manquants, encodés -1 (encoded_missing_value)
+    # np.nan en dernière modalité : manquants acceptés, encodés -1
     ordinal = OrdinalEncoder(categories=[ORDINAL[c] + [np.nan] for c in ORDINAL],
                              encoded_missing_value=-1)
     numeric_steps = [("clip", QuantileClipper(*CLIP_QUANTILES))] if clip_numeric else []
@@ -98,13 +109,25 @@ def build_preprocessor(categories: dict[str, list], clip_numeric: bool) -> Colum
 
 
 def make_model(task: str, estimator: str, params: dict, categories: dict[str, list]) -> Pipeline:
-    """Pipeline complet (prétraitement + modèle), partagé avec compare_models.py.
+    """Pipeline complet (prétraitement + modèle), aussi utilisé par compare_models.py.
 
-    task : "clf" ou "reg" (l'écrêtage des variables numériques ne sert qu'en régression).
-    estimator : clé de ESTIMATORS ("rf" ou "hgb").
+    Parameters
+    ----------
+    task : {"clf", "reg"}
+        Classification ou régression (écrêtage des numériques en régression seulement).
+    estimator : {"rf", "hgb"}
+        Clé de ESTIMATORS.
+    params : dict
+        Hyperparamètres du modèle.
+    categories : dict
+        Catégories du one-hot.
+
+    Returns
+    -------
+    Pipeline
     """
     classe = ESTIMATORS[estimator][0 if task == "clf" else 1]
-    extra = {"n_jobs": -1} if estimator == "rf" else {}  # le HGB est déjà parallélisé
+    extra = {"n_jobs": -1} if estimator == "rf" else {}  # HGB déjà parallélisé
     return Pipeline([
         ("prep", build_preprocessor(categories, clip_numeric=(task == "reg"))),
         ("model", classe(random_state=RANDOM_STATE, **extra, **params)),
@@ -112,11 +135,14 @@ def make_model(task: str, estimator: str, params: dict, categories: dict[str, li
 
 
 def split_par_adresse(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Découpage train/test sans qu'une adresse soit des deux côtés.
+    """Découpage train/test sans adresse commune aux deux jeux.
 
-    Un pli de StratifiedGroupKFold : les groupes (adresses) restent entiers et la
-    proportion des étiquettes est à peu près conservée. TEST_SIZE = 1/3 donne
-    3 plis, donc environ 33 % en test.
+    Premier pli d'un StratifiedGroupKFold : adresses entières, proportion des
+    étiquettes à peu près conservée. TEST_SIZE = 1/3 -> 3 plis, environ 33 % en test.
+
+    Returns
+    -------
+    train, test : DataFrame
     """
     cv = StratifiedGroupKFold(n_splits=round(1 / TEST_SIZE), shuffle=True,
                               random_state=RANDOM_STATE)
@@ -125,16 +151,24 @@ def split_par_adresse(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def clip_target(y_train: pd.Series) -> tuple[pd.Series, tuple[float, float]]:
-    """Écrête la cible de régression sur le train uniquement (le test garde ses vraies valeurs)."""
+    """Écrête la cible de régression aux quantiles CLIP_QUANTILES (train uniquement).
+
+    Returns
+    -------
+    y : Series
+        Cible écrêtée.
+    bornes : tuple of float
+        Bornes basse et haute.
+    """
     low, high = y_train.quantile(list(CLIP_QUANTILES))
     return y_train.clip(low, high), (float(low), float(high))
 
 
 def classification_metrics(y_true, y_pred) -> dict:
+    """Accuracy, accuracy à une classe près, F1 macro et pondéré, rappel par classe."""
     rang = {e: i for i, e in enumerate(ORDRE_ETIQUETTES)}
     ecart = np.abs(pd.Series(y_true).map(rang).values - pd.Series(y_pred).map(rang).values)
-    # Rappel par classe : part des vrais logements de la classe que le modèle retrouve.
-    # labels= fixe l'ordre ; zero_division=0 si une classe n'est jamais prédite.
+    # Rappel dans l'ordre des étiquettes ; 0 pour une classe jamais prédite
     rappels = recall_score(y_true, y_pred, labels=ORDRE_ETIQUETTES, average=None, zero_division=0)
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -146,6 +180,7 @@ def classification_metrics(y_true, y_pred) -> dict:
 
 
 def regression_metrics(y_true, y_pred) -> dict:
+    """RMSE, MAE et R²."""
     return {
         "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
         "mae": float(mean_absolute_error(y_true, y_pred)),
@@ -154,6 +189,7 @@ def regression_metrics(y_true, y_pred) -> dict:
 
 
 def train_classifier(train: pd.DataFrame, test: pd.DataFrame, categories: dict[str, list]):
+    """Entraîne le classifieur et l'évalue sur `test`. Renvoie (modèle, métriques)."""
     model = make_model("clf", CLF_ESTIMATOR, CLF_PARAMS, categories)
     model.fit(train[FEATURES], train[TARGET_CLF])
     metrics = classification_metrics(test[TARGET_CLF], model.predict(test[FEATURES]))
@@ -162,6 +198,10 @@ def train_classifier(train: pd.DataFrame, test: pd.DataFrame, categories: dict[s
 
 
 def train_regressor(train: pd.DataFrame, test: pd.DataFrame, categories: dict[str, list]):
+    """Entraîne le régresseur (cible écrêtée) et l'évalue sur `test` (cible réelle).
+
+    Renvoie (modèle, métriques).
+    """
     y_train, bornes = clip_target(train[TARGET_REG])
     model = make_model("reg", REG_ESTIMATOR, REG_PARAMS, categories)
     model.fit(train[FEATURES], y_train)
@@ -171,8 +211,15 @@ def train_regressor(train: pd.DataFrame, test: pd.DataFrame, categories: dict[st
 
 
 def build_metadata(categories: dict[str, list], clf_metrics: dict, reg_metrics: dict) -> dict:
-    """Informations lues par l'appli : contrat d'entrée, options, métriques."""
-    # « inconnu » n'est pas proposé dans le formulaire : un champ laissé vide en tient lieu
+    """Contenu de metadata.json, lu par l'appli et l'API.
+
+    Returns
+    -------
+    dict
+        Contrat d'entrée, options du formulaire, statistiques des données,
+        modèles, métriques, date et version de scikit-learn.
+    """
+    # « inconnu » absent des options : un champ laissé vide en tient lieu
     options = {c: [v for v in values if v != VALEUR_INCONNUE] for c, values in categories.items()}
     options.update({c: list(levels) for c, levels in ORDINAL.items()})
 
@@ -196,8 +243,15 @@ def build_metadata(categories: dict[str, list], clf_metrics: dict, reg_metrics: 
 
 
 def run(input_path=DATA_CLEAN):
+    """Entraîne et évalue les deux modèles, puis écrit les .joblib et metadata.json.
+
+    Returns
+    -------
+    clf, reg : Pipeline
+    metadata : dict
+    """
     df = pd.read_csv(input_path, dtype={"code_postal_ban": str, GROUP: str})
-    # Mêmes types que les saisies de l'appli (colonnes texte en object, NaN inclus)
+    # Mêmes types que les saisies de l'appli et de l'API
     df = pd.concat([df[[TARGET_CLF, TARGET_REG, GROUP]], to_model_frame(df)], axis=1)
 
     categories = categories_from(df)

@@ -1,6 +1,8 @@
-"""Chemins, variables et hyperparamètres communs au pipeline et à l'appli.
+"""Configuration commune au pipeline, à l'appli et à l'API.
 
-Toute modification du contrat d'entrée du modèle (FEATURES) se fait ici.
+Chemins, cibles, variables d'entrée des modèles et hyperparamètres.
+Le contrat d'entrée des modèles (FEATURES) se modifie uniquement ici ;
+tout changement impose un réentraînement.
 """
 
 from pathlib import Path
@@ -13,10 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_RAW = ROOT / "data" / "raw" / "dpe03existant.csv"
 DATA_CLEAN = ROOT / "data" / "processed" / "dpe_clean.csv"
 CLEAN_STATS = ROOT / "data" / "processed" / "clean_stats.json"
-# Trace du dernier téléchargement : évite de rappeler l'API inutilement
-FETCH_INFO = ROOT / "data" / "raw" / "fetch_info.json"
-# Mise à jour incrémentale : DPE créés ou modifiés depuis la dernière mise à jour
-DATA_NOUVEAUX = ROOT / "data" / "raw" / "dpe_nouveaux.csv"
+FETCH_INFO = ROOT / "data" / "raw" / "fetch_info.json"  # trace du dernier téléchargement complet (cache)
+DATA_NOUVEAUX = ROOT / "data" / "raw" / "dpe_nouveaux.csv"  # DPE créés ou modifiés (mise à jour incrémentale)
 
 MODELS_DIR = ROOT / "models"
 CLF_PATH = MODELS_DIR / "classification_etiquette.joblib"
@@ -30,11 +30,11 @@ TARGET_CLF = "etiquette_dpe"
 TARGET_REG = "conso_5_usages_ef"
 TARGETS = [TARGET_CLF, TARGET_REG]
 
-# Classes A et B fusionnées dans le notebook (A trop rare)
+# A et B regroupées : classe A trop rare
 ORDRE_ETIQUETTES = ["A-B", "C", "D", "E", "F", "G"]
 
 # ------------------------------------------------
-# Variables d'entrée du modèle (contrat avec l'appli)
+# Variables d'entrée des modèles
 # ------------------------------------------------
 CATEGORICAL = [
     "code_postal_ban",
@@ -46,7 +46,7 @@ CATEGORICAL = [
     "generateur",
 ]
 
-# Variables ordinales : l'ordre des listes fixe l'encodage 0, 1, 2…
+# Ordre des modalités = ordre de l'encodage (0, 1, 2…)
 ORDINAL = {
     "periode_construction": [
         "avant 1948", "1948-1974", "1975-1977", "1978-1982", "1983-1988",
@@ -55,24 +55,21 @@ ORDINAL = {
     "qualite_isolation_menuiseries": ["insuffisante", "moyenne", "bonne", "très bonne"],
 }
 
-# Variables numériques écrêtées aux quantiles 1 % / 99 % (régression uniquement)
+# Écrêtées aux quantiles CLIP_QUANTILES (régression uniquement)
 CLIPPED = ["surface_habitable_logement", "nombre_niveau_logement"]
 
-# Variables binaires 0/1
+# Variables 0/1
 BINARY = ["isolation_toiture", "logement_traversant", "climatisation"]
 
-# Valeur donnée aux catégories non renseignées (remplace le dropna du notebook)
+# Modalité des catégories non renseignées
 VALEUR_INCONNUE = "inconnu"
 
-# Champs que l'utilisateur doit obligatoirement renseigner dans l'appli.
-# Les autres peuvent rester vides : le pipeline les traite comme « inconnus ».
+# Champs obligatoires (appli et API) ; les autres, vides, valent « inconnu »
 REQUIRED = ["code_postal_ban", "type_batiment", "surface_habitable_logement"]
 
-# Jamais renseignés pour les maisons dans les données ADEME : non transmis au
-# modèle pour une maison (appli et API)
+# Jamais renseignés pour les maisons dans les données ADEME : ignorés pour une maison
 CHAMPS_APPARTEMENT = ["type_installation_chauffage", "type_installation_ecs"]
 
-# Ordre des colonnes identique à celui du notebook
 FEATURES = [
     "code_postal_ban",
     "type_batiment",
@@ -90,26 +87,25 @@ FEATURES = [
     "generateur",
 ]
 
-# Colonnes gardées dans le CSV nettoyé, qui ne sont pas des variables du modèle
-GROUP = "groupe"   # adresse BAN : sert à découper train/test sans séparer les logements d'une même adresse
-# Identifiant et date de dernière modification : servent à la mise à jour incrémentale
-ID_DPE = "numero_dpe"
-DATE_MAJ = "date_derniere_modification_dpe"
+# Colonnes du CSV nettoyé hors variables des modèles
+GROUP = "groupe"  # adresse BAN : découpage train/test sans séparer une même adresse
+ID_DPE = "numero_dpe"  # identifiant (dédoublonnage incrémental)
+DATE_MAJ = "date_derniere_modification_dpe"  # point de départ de la mise à jour incrémentale
 EXTRA = [GROUP, "latitude", "longitude", "nom_commune_ban", ID_DPE, DATE_MAJ]
 
 # ------------------------------------------------
-# Entraînement (valeurs reprises du notebook)
+# Entraînement
 # ------------------------------------------------
 RANDOM_STATE = 42
 TEST_SIZE = 1 / 3
 CLIP_QUANTILES = (0.01, 0.99)
 
-# Type de modèle : "rf" (forêt aléatoire) ou "hgb" (HistGradientBoosting)
+# Modèle : "rf" (forêt aléatoire) ou "hgb" (HistGradientBoosting)
 CLF_ESTIMATOR = "hgb"
 REG_ESTIMATOR = "hgb"
 
-# Choisis avec compare_models.py : validation croisée par adresse BAN, 50 000 lignes, 3 plis.
-# Classification : meilleur F1 macro, compromis entre accuracy et rappel des classes rares (A-B, G).
+# Hyperparamètres choisis avec compare_models.py (validation croisée par adresse, 3 plis).
+# Classification : meilleur F1 macro, compromis accuracy / rappel des classes rares.
 CLF_PARAMS = {
     "learning_rate": 0.05,
     "max_leaf_nodes": 255,
@@ -117,7 +113,7 @@ CLF_PARAMS = {
     "early_stopping": True,
     "class_weight": "balanced",
 }
-# Régression : meilleur sur RMSE, MAE et R², 0,3 Mo
+# Régression : meilleurs RMSE, MAE et R²
 REG_PARAMS = {
     "learning_rate": 0.1,
     "max_leaf_nodes": 63,
