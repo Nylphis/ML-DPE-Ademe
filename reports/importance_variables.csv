@@ -1,0 +1,15 @@
+variable,classification_moyenne,classification_ecart_type,regression_moyenne,regression_ecart_type
+code_postal_ban,0.00662,0.00076,44.20386,1.06982
+type_batiment,0.00475,0.00024,73.18817,2.00561
+surface_habitable_logement,0.05377,0.00142,2365.25596,3.15614
+periode_construction,0.12150,0.00106,1092.22901,10.07353
+nombre_niveau_logement,0.00809,0.00052,85.74478,1.34611
+type_energie_principale_chauffage,0.02271,0.00123,765.08966,5.01622
+type_installation_chauffage,0.00759,0.00044,83.11185,1.02234
+type_energie_principale_ecs,0.03698,0.00092,112.27097,1.17314
+type_installation_ecs,0.01500,0.00054,137.33030,2.19142
+isolation_toiture,0.01214,0.00047,86.34304,1.15824
+qualite_isolation_menuiseries,0.02126,0.00159,189.37175,2.37413
+logement_traversant,0.00790,0.00046,60.49504,1.11381
+climatisation,0.00206,0.00039,15.47036,0.55446
+generateur,0.01446,0.00053,172.35355,2.38484

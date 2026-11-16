@@ -30,6 +30,7 @@ api/                        # API des modèles (FastAPI)
 dpe/                        # pipeline : config, fetch (API ADEME), clean, train, features
 run.py                      # lance le pipeline : python run.py [fetch] [clean] [train]
 compare_models.py           # comparaison des modèles candidats -> reports/
+interpret_models.py         # matrice de confusion et importance des variables -> reports/
 data/processed/             # données nettoyées et statistiques
 models/                     # modèles entraînés (.joblib) et metadata.json
 reports/                    # résultats de la comparaison des modèles
